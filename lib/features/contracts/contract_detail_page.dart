@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/errors/app_failure.dart';
 import '../../core/session/failure_handler.dart';
+import '../../core/session/contract_classification.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/session/session_state.dart';
 import '../../data/api.dart';
 import '../../data/columns.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/labels.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -17,7 +19,7 @@ import 'contract_tabs.dart';
 const _contractCols = 'id,contract_seq,contract_no,contractor_id,title,scope_of_work,geozone,site,risk_class,start_date,end_date,'
     'target_mob_date,awarded_at,process_owner_id,hse_reviewer_id,review_mailbox,premob_questionnaire,status,status_before_hold,'
     'health_flag,compressed_timeline,golive_requested_at,golive_requested_by,golive_approved_at,golive_approved_by,closed_at,'
-    'created_at,updated_at';
+    'created_at,updated_at,contract_mode,hse_oversight_notes,duration_days,duration_category,access_tier';
 
 /// Data inti kontrak yang dipakai semua tab.
 class ContractCtx {
@@ -29,6 +31,8 @@ class ContractCtx {
   String get status => k['status'] as String;
   bool get isFinal => status == 'closed' || status == 'terminated';
   String get contractorId => k['contractor_id'] as String;
+  ContractMode get mode => ContractMode.fromCode(k['contract_mode'] as String?);
+  AccessTier get tier => AccessTier.fromCode(k['access_tier'] as String?);
 }
 
 const _tabs = <(String, String, IconData)>[
@@ -107,8 +111,13 @@ class _ContractDetailPageState extends ConsumerState<ContractDetailPage> {
     context.go('/chat/${ch['id']}');
   }
 
-  List<(String, String, IconData)> _visibleTabs(SessionState s) =>
-      _tabs.where((t) => t.$1 != 'onedrive' || (s.isWfrd && s.can('upload_link.view'))).toList();
+  List<(String, String, IconData)> _visibleTabs(SessionState s, ContractCtx c) => _tabs.where((t) => switch (t.$1) {
+        'onedrive' => s.isWfrd && s.can('upload_link.view'),
+        'subcontractors' => c.mode != ContractMode.mode3,
+        'risks' => s.isWfrd || c.tier.rank >= AccessTier.streamlined.rank,
+        'kpi' => s.isWfrd || c.tier != AccessTier.visitor,
+        _ => true,
+      }).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +127,7 @@ class _ContractDetailPageState extends ConsumerState<ContractDetailPage> {
       future: _future,
       onRetry: _reload,
       builder: (context, c) {
-        final tabs = _visibleTabs(s);
+        final tabs = _visibleTabs(s, c);
         final current = tabs.any((t) => t.$1 == _tab) ? _tab : 'overview';
         return PageScaffold(
           title: str(c.k['contract_no'], 'Kontrak'),
@@ -262,7 +271,7 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
 
   Future<void> _requestGoLive() async {
     final yes = await showConfirm(context,
-        title: 'Ajukan Go-Live?', message: 'Checklist mobilisasi (MOBCHK) harus sudah 100% terverifikasi & approved. PO kontrak akan diberi tahu.', confirmLabel: 'Ajukan');
+        title: 'Ajukan Go-Live?', message: 'Checklist mobilisasi (MOBCHK, bila berlaku) harus sudah 100% terverifikasi & approved. PO kontrak akan diberi tahu.', confirmLabel: 'Ajukan');
     if (!yes || !mounted) return;
     setState(() => _busy = true);
     final ok = await runOk(context, ref, () => ref.read(apiProvider).rpc('request_go_live', {'p_contract': c.id}), success: 'Permintaan Go-Live terkirim');
@@ -321,6 +330,7 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
             HeroChip(StatusStyle.contract(c.status).$2, icon: Icons.flag_rounded),
             HeroChip('Health ${healthLabel(k['health_flag'] as String?)}', icon: Icons.monitor_heart_rounded),
             HeroChip('Risiko ${riskClassLabel[k['risk_class']] ?? '-'}', icon: Icons.shield_rounded),
+            HeroChip('${c.mode.label} · ${c.tier.label}', icon: Icons.account_tree_rounded),
             HeroChip('${str(k['geozone'])}${k['site'] == null ? '' : ' · ${k['site']}'}', icon: Icons.place_rounded),
             if (k['compressed_timeline'] == true) const HeroChip('Timeline dipadatkan', icon: Icons.compress_rounded),
           ],
@@ -364,7 +374,7 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, box) {
             final gate = _gateCard(s, d);
-            final info = _infoCard();
+            final info = _infoCard(s);
             return box.maxWidth >= 1000
                 ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: gate), const SizedBox(width: 16), Expanded(flex: 4, child: info)])
                 : Column(children: [gate, const SizedBox(height: 16), info]);
@@ -382,14 +392,39 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
     );
   }
 
-  Widget _infoCard() {
+  bool _canChangeMode(SessionState s) =>
+      s.isWfrd &&
+      s.can('contract.edit') &&
+      const {'awarded', 'post_award'}.contains(c.status) &&
+      (s.userId == c.k['process_owner_id'] || s.isRootAdmin || s.roles.any((r) => const {'hse_director', 'super_admin'}.contains(r['key'])));
+
+  Future<void> _changeMode() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _ChangeModeDialog(c: c));
+    if (ok == true) widget.onChanged();
+  }
+
+  Widget _infoCard(SessionState s) {
     final k = c.k;
     final po = c.users[k['process_owner_id']];
     final rv = c.users[k['hse_reviewer_id']];
+    final notes = k['hse_oversight_notes'] as String?;
     return SectionCard(
       title: 'Detail kontrak',
       icon: Icons.info_outline_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: ClassificationBadges(k)),
+          if (_canChangeMode(s))
+            TextButton.icon(onPressed: _changeMode, icon: const Icon(Icons.swap_horiz_rounded, size: 18), label: const Text('Ubah mode')),
+        ]),
+        const SizedBox(height: 6),
+        Text('${c.mode.title} · ${c.tier.description} · SLA review ${c.tier.reviewSlaDays} hari kerja',
+            style: Theme.of(context).textTheme.bodySmall),
+        if (notes != null && notes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          InfoBanner(message: 'HSE oversight: $notes', icon: Icons.policy_rounded, color: Brand.amber),
+        ],
+        const SizedBox(height: 12),
         KeyValueGrid(minItemWidth: 180, [
           ('Nomor', MonoText(str(k['contract_no']))),
           ('Contractor', Text(str(c.contractor['legal_name']))),
@@ -477,13 +512,14 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
         final mob = (d.tasks.where((t) => t['doc_type_code'] == 'MOBCHK').toList()
               ..sort((a, b) => ((b['revision'] as num?) ?? 0).compareTo((a['revision'] as num?) ?? 0)))
             .firstOrNull;
-        final mobOk = mob != null && mob['status'] == 'approved';
+        final mobRequired = mob != null || c.tier.rank >= AccessTier.streamlined.rank;
+        final mobOk = !mobRequired || mob?['status'] == 'approved';
         final requested = k['golive_requested_at'] != null;
         items
           ..add(GateItem(
             ok: mobOk,
-            label: 'Checklist mobilisasi (MOBCHK) 100% terverifikasi & approved',
-            detail: mob == null ? 'Task MOBCHK belum ada' : '${mob['task_id']} · ${StatusStyle.task(mob['status'] as String?).$2}',
+            label: mobRequired ? 'Checklist mobilisasi (MOBCHK) 100% terverifikasi & approved' : 'Checklist mobilisasi tidak berlaku (kategori ${c.tier.label})',
+            detail: !mobRequired ? null : mob == null ? 'Task MOBCHK belum ada' : '${mob['task_id']} · ${StatusStyle.task(mob['status'] as String?).$2}',
             onTap: mob == null ? null : () => context.go('/tasks/${mob['id']}'),
           ))
           ..add(GateItem(
@@ -662,7 +698,8 @@ class _PremobTabState extends ConsumerState<_PremobTab> {
   Widget build(BuildContext context) {
     final s = watchSession(ref)!;
     final st = widget.c.status;
-    final editable = const {'awarded', 'post_award'}.contains(st) && (s.isWfrd ? s.can('contract.edit') : s.can('record.submit'));
+    final editable = const {'awarded', 'post_award'}.contains(st) &&
+        (s.isWfrd ? s.can('contract.edit') : s.can('record.submit') && (s.contractorLevel?.atLeast(ContractorUserLevel.supervisor) ?? false));
     final answered = _premobQuestions.where((q) => _a[q.$1] is bool).length + (int.tryParse(_workers.text.trim()) != null ? 1 : 0);
     final total = _premobQuestions.length + 1;
     final questionnaire = SectionCard(
@@ -815,6 +852,15 @@ class _EditContractDialogState extends ConsumerState<_EditContractDialog> {
     return p;
   }
 
+  AccessTier? get _newTier {
+    final start = parseDate(k['start_date']);
+    if (start == null || _end == null || isoDate(_end!) == k['end_date']) return null;
+    final days = contractDurationDays(start, _end!);
+    if (days < 0) return null;
+    final t = AccessTier.resolve(widget.c.mode, days);
+    return t == widget.c.tier ? null : t;
+  }
+
   Future<void> _save() async {
     setState(() => _busy = true);
     final ok = await runOk(context, ref,
@@ -893,6 +939,16 @@ class _EditContractDialogState extends ConsumerState<_EditContractDialog> {
                 padding: EdgeInsets.only(top: 8),
                 child: InfoBanner(message: 'Mengubah kelas risiko menghitung ulang dokumen wajib.', color: Brand.amber, icon: Icons.rule_rounded),
               ),
+            if (_newTier case final t?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InfoBanner(
+                  message: 'Durasi baru mengubah kategori kontrak ${widget.c.tier.label} → ${t.label}. Dokumen wajib dihitung ulang; '
+                      'task yang tidak berlaku lagi dibatalkan otomatis.',
+                  color: Brand.amber,
+                  icon: Icons.account_tree_rounded,
+                ),
+              ),
             const SizedBox(height: 16),
             TextField(
               controller: _reason,
@@ -906,6 +962,122 @@ class _EditContractDialogState extends ConsumerState<_EditContractDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
         FilledButton(onPressed: ok ? _save : null, child: Text(patch.isEmpty ? 'Tidak ada perubahan' : 'Simpan ${patch.length} perubahan')),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════ Ubah mode kontrak ═══════════════════════════
+class _ChangeModeDialog extends ConsumerStatefulWidget {
+  const _ChangeModeDialog({required this.c});
+  final ContractCtx c;
+  @override
+  ConsumerState<_ChangeModeDialog> createState() => _ChangeModeDialogState();
+}
+
+class _ChangeModeDialogState extends ConsumerState<_ChangeModeDialog> {
+  late ContractMode _mode = widget.c.mode;
+  late final _notes = TextEditingController(text: widget.c.k['hse_oversight_notes'] as String?);
+  final _reason = TextEditingController();
+  bool _busy = false;
+
+  int get _days => (widget.c.k['duration_days'] as num?)?.toInt() ?? 0;
+  AccessTier get _tier => AccessTier.resolve(_mode, _days);
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    final notes = _notes.text.trim();
+    final ok = await runOk(
+      context,
+      ref,
+      () => ref.read(apiProvider).rpc('change_contract_mode', {
+        'p_contract': widget.c.id,
+        'p_mode': _mode.code,
+        'p_notes': notes.isEmpty ? null : notes,
+        'p_reason': _reason.text.trim(),
+      }),
+      success: 'Mode kontrak → ${_mode.label} · kategori ${_tier.label}',
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notes = _notes.text.trim();
+    final changed = _mode != widget.c.mode || notes != ((widget.c.k['hse_oversight_notes'] as String?) ?? '');
+    final notesOk = _mode != ContractMode.mode3 || notes.length >= 20;
+    final ok = !_busy && changed && notesOk && _reason.text.trim().length >= 5;
+    final tierChanged = _tier != widget.c.tier;
+    return AlertDialog(
+      title: const Text('Ubah mode kontrak'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            RadioGroup<ContractMode>(
+              groupValue: _mode,
+              onChanged: (v) => setState(() => _mode = v ?? _mode),
+              child: Column(children: [
+                for (final m in ContractMode.values)
+                  RadioListTile<ContractMode>(
+                    value: m,
+                    contentPadding: EdgeInsets.zero,
+                    title: Row(children: [ModeBadge(m), const SizedBox(width: 10), Flexible(child: Text(m.title))]),
+                    subtitle: Text(m.hint),
+                  ),
+              ]),
+            ),
+            if (_mode == ContractMode.mode3) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _notes,
+                maxLines: 3,
+                maxLength: 2000,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(labelText: 'Catatan HSE oversight *', helperText: 'Min. 20 karakter', alignLabelWithHint: true),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              const Text('Kategori hasil:'),
+              TierBadge(_tier),
+            ]),
+            if (tierChanged) ...[
+              const SizedBox(height: 8),
+              InfoBanner(
+                message: 'Kategori berubah ${widget.c.tier.label} → ${_tier.label}: dokumen wajib dihitung ulang, task yang tidak berlaku dibatalkan, '
+                    'task baru dibuat bila perlu, dan contractor diberi tahu.',
+                color: Brand.amber,
+                icon: Icons.account_tree_rounded,
+              ),
+            ],
+            if (_mode == ContractMode.mode3)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: InfoBanner(message: 'Mode 3 ditolak bila kontrak memakai subcontractor.', icon: Icons.groups_2_outlined),
+              ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reason,
+              onChanged: (_) => setState(() {}),
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Alasan perubahan *', helperText: 'Minimal 5 karakter · tercatat sebagai security event'),
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+        FilledButton(onPressed: ok ? _save : null, child: const Text('Simpan mode')),
       ],
     );
   }

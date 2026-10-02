@@ -5,10 +5,12 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
+import '../../core/session/contract_classification.dart';
 import '../../core/session/failure_handler.dart';
 import '../../core/session/session_state.dart';
 import '../../data/api.dart';
 import '../../data/columns.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
@@ -464,10 +466,13 @@ class ReasonField extends StatelessWidget {
 enum RoleGrantMode { approve, grant, invite }
 
 class RoleGrant {
-  RoleGrant({required this.roleKey, required this.scopeType, this.scopeId, this.contractorId, this.expiresAt, required this.reason, this.email, this.note});
+  RoleGrant({required this.roleKey, required this.scopeType, this.scopeId, this.contractorId, this.expiresAt, required this.reason, this.email, this.note, this.contractorLevel});
   final String roleKey, scopeType, reason;
   final String? scopeId, contractorId, email, note;
   final DateTime? expiresAt;
+
+  /// Level user contractor (wajib untuk role contractor saat approve/invite).
+  final ContractorUserLevel? contractorLevel;
   String? get expiresIso => expiresAt == null ? null : DateTime(expiresAt!.year, expiresAt!.month, expiresAt!.day, 23, 59, 59).toUtc().toIso8601String();
 }
 
@@ -504,6 +509,7 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
   String _scope = 'global';
   String? _scopeId;
   String? _contractor;
+  ContractorUserLevel? _level;
   DateTime? _expires;
   final _email = TextEditingController();
   final _note = TextEditingController();
@@ -518,8 +524,13 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
   void initState() {
     super.initState();
     _contractor = widget.presetContractorId;
-    if (_registeredCompany && _roles.any((r) => r['key'] == 'contractor_rep')) _role = 'contractor_rep';
+    if (_registeredCompany && _roles.any((r) => r['key'] == 'contractor_rep')) {
+      _role = 'contractor_rep';
+      _level = _canSetPic ? ContractorUserLevel.pic : null;
+    }
   }
+
+  bool get _canSetPic => widget.session?.can('level.pic.set') == true;
 
   bool get _registeredCompany => widget.mode == RoleGrantMode.approve && widget.presetContractorId != null;
   String get _registeredCompanyName =>
@@ -532,7 +543,8 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
     if (_role == null || _reason.text.trim().length < 5) return false;
     if (widget.mode == RoleGrantMode.invite && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text.trim())) return false;
     if (_isWfrd && _scope != 'global' && (_scopeId == null || _scopeId!.isEmpty)) return false;
-    if (_needsContractor && _contractor == null) return false;
+    if (_needsContractor && (_contractor == null || _level == null)) return false;
+    if (_needsContractor && _level == ContractorUserLevel.pic && !_canSetPic) return false;
     return true;
   }
 
@@ -638,6 +650,36 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
               ),
               const SizedBox(height: 4),
               Text('Role contractor selalu ber-scope global (dibatasi oleh contractor user).', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<ContractorUserLevel>(
+                initialValue: _level,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Level user contractor *',
+                  prefixIcon: Icon(Icons.badge_outlined),
+                  helperText: 'PIC: legal & Go-Live · Supervisor: dokumen & manning · Employee: checklist, BBS, Stop Work',
+                  helperMaxLines: 2,
+                ),
+                items: [
+                  for (final lv in ContractorUserLevel.values)
+                    DropdownMenuItem(
+                      value: lv,
+                      enabled: lv != ContractorUserLevel.pic || _canSetPic,
+                      child: Row(children: [
+                        LevelBadge(lv),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            lv == ContractorUserLevel.pic && !_canSetPic ? 'Butuh izin level.pic.set' : lv.description,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: lv == ContractorUserLevel.pic && !_canSetPic ? Brand.grey : null),
+                          ),
+                        ),
+                      ]),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _level = v),
+              ),
             ],
             const SizedBox(height: 16),
             DateField(
@@ -666,6 +708,7 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
                       scopeType: _isWfrd ? _scope : 'global',
                       scopeId: _isWfrd && _scope != 'global' ? _scopeId : null,
                       contractorId: _needsContractor ? _contractor : null,
+                      contractorLevel: _needsContractor ? _level : null,
                       expiresAt: _expires,
                       reason: _reason.text.trim(),
                       email: widget.mode == RoleGrantMode.invite ? _email.text.trim().toLowerCase() : null,

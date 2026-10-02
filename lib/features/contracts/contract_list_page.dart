@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/session/contract_classification.dart';
 import '../../core/session/session_controller.dart';
 import '../../data/api.dart';
 import '../../data/columns.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import 'contract_common.dart';
@@ -28,9 +30,11 @@ class _ContractListPageState extends ConsumerState<ContractListPage> {
   String _group = 'running';
   String? _status;
   String? _health;
+  AccessTier? _tier;
 
   static const _cols = 'id,contract_seq,contract_no,contractor_id,title,geozone,site,risk_class,start_date,end_date,target_mob_date,'
-      'status,health_flag,compressed_timeline,golive_requested_at,golive_approved_at,closed_at,updated_at';
+      'status,health_flag,compressed_timeline,golive_requested_at,golive_approved_at,closed_at,updated_at,'
+      'contract_mode,duration_days,duration_category,access_tier';
 
   @override
   void initState() {
@@ -68,6 +72,7 @@ class _ContractListPageState extends ConsumerState<ContractListPage> {
     if (!inGroup) return false;
     if (_status != null && st != _status) return false;
     if (_health != null && k['health_flag'] != _health) return false;
+    if (_tier != null && k['access_tier'] != _tier!.code) return false;
     final q = _search.text.trim().toLowerCase();
     if (q.isEmpty) return true;
     final c = cs[k['contractor_id']];
@@ -179,6 +184,18 @@ class _ContractListPageState extends ConsumerState<ContractListPage> {
                       selected: _health == h,
                       onSelected: (_) => setState(() => _health = h),
                     ),
+                ]),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Text('Kategori:', style: Theme.of(context).textTheme.labelLarge),
+                  ChoiceChip(label: const Text('Semua'), selected: _tier == null, onSelected: (_) => setState(() => _tier = null)),
+                  for (final t in AccessTier.values)
+                    ChoiceChip(
+                      label: Text('${t.label} (${all.where((k) => k['access_tier'] == t.code).length})'),
+                      tooltip: t.description,
+                      selected: _tier == t,
+                      onSelected: (_) => setState(() => _tier = _tier == t ? null : t),
+                    ),
                   const SizedBox(width: 8),
                   Text('${rows.length} dari ${all.length} kontrak', style: Theme.of(context).textTheme.bodySmall),
                 ]),
@@ -215,7 +232,7 @@ class _Table extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         clipBehavior: Clip.antiAlias,
         child: DataList(
-          columns: ['', 'Kontrak', if (showContractor) 'Contractor', 'Status', 'Risiko', 'Geozone / site', 'Target mob', 'Selesai'],
+          columns: ['', 'Kontrak', if (showContractor) 'Contractor', 'Status', 'Kategori', 'Risiko', 'Geozone / site', 'Target mob', 'Selesai'],
           rows: [
             for (final k in rows)
               [
@@ -242,6 +259,10 @@ class _Table extends StatelessWidget {
                   StatusBadge.contract(k['status'] as String?),
                   if (k['status'] == 'mobilization' && k['golive_requested_at'] != null) const StatusBadge(Brand.purple, 'Go-Live diminta', icon: Icons.rocket_launch_rounded),
                 ]),
+                Tooltip(
+                  message: '${ContractMode.fromCode(k['contract_mode'] as String?).label} · ${k['duration_days'] ?? '-'} hari',
+                  child: ClassificationBadges(k, compact: true),
+                ),
                 StatusBadge(riskClassColor(k['risk_class'] as String?), riskClassLabel[k['risk_class']] ?? '-'),
                 Text('${str(k['geozone'])}${k['site'] == null ? '' : ' · ${k['site']}'}', maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(fmtDate(k['target_mob_date'])),
@@ -281,6 +302,8 @@ class _Cards extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(str(cs[k['contractor_id']]?['legal_name']), style: Theme.of(context).textTheme.bodySmall),
                     const SizedBox(height: 10),
+                    ClassificationBadges(k),
+                    const SizedBox(height: 8),
                     Wrap(spacing: 8, runSpacing: 6, children: [
                       StatusBadge(riskClassColor(k['risk_class'] as String?), 'Risiko ${riskClassLabel[k['risk_class']] ?? '-'}'),
                       StatusBadge(Brand.cyan, 'Mob ${fmtDate(k['target_mob_date'])}', icon: Icons.local_shipping_outlined),

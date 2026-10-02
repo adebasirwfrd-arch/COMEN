@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/session/failure_handler.dart';
 import '../../data/api.dart';
+import '../../core/session/contract_classification.dart';
 import '../../data/columns.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import 'contract_common.dart';
@@ -25,6 +27,8 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
   final _scope = TextEditingController();
   final _site = TextEditingController();
   final _mailbox = TextEditingController();
+  final _oversight = TextEditingController();
+  ContractMode _mode = ContractMode.mode1;
   String? _contractorId, _geozone;
   String _risk = 'medium';
   DateTime? _start, _end, _mob;
@@ -56,6 +60,9 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
 
   void _reload() => setState(() => _future = _load());
 
+  int? get _days => _start == null || _end == null ? null : contractDurationDays(_start!, _end!);
+  AccessTier? get _tier => _days == null || _days! < 0 ? null : AccessTier.resolve(_mode, _days!);
+
   List<String> _problems() => [
         if (_contractorId == null) 'Pilih contractor',
         if (_title.text.trim().length < 3) 'Judul minimal 3 karakter',
@@ -64,6 +71,7 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
         if (_start != null && _end != null && _end!.isBefore(_start!)) 'Tanggal selesai harus ≥ tanggal mulai',
         if (_mob != null && _end != null && (_mob!.isAfter(_end!) || _mob!.isBefore(DateTime(_awarded.year, _awarded.month, _awarded.day))))
           'Target mobilisasi harus di antara tanggal award dan tanggal selesai',
+        if (_mode == ContractMode.mode3 && _oversight.text.trim().length < 20) 'Mode 3 wajib catatan HSE oversight (min. 20 karakter)',
         if (_po == null) 'Pilih Process Owner',
         if (_reviewer == null) 'Pilih HSE Reviewer',
         if (_mailbox.text.trim().isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_mailbox.text.trim())) 'Format mailbox review tidak valid',
@@ -88,6 +96,8 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
         'p_process_owner': _po!['id'],
         'p_hse_reviewer': _reviewer!['id'],
         'p_review_mailbox': trimOrNull(_mailbox),
+        'p_contract_mode': _mode.code,
+        'p_hse_oversight_notes': trimOrNull(_oversight),
       }),
       success: 'Kontrak dibuat · task post-award & channel kontrak disiapkan',
     );
@@ -183,6 +193,8 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
         ]),
       ),
       const SizedBox(height: 16),
+      _modeCard(),
+      const SizedBox(height: 16),
       SectionCard(
         title: 'Lokasi & risiko',
         icon: Icons.place_rounded,
@@ -265,6 +277,72 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
     ]);
   }
 
+  Widget _modeCard() {
+    final t = Theme.of(context);
+    return SectionCard(
+      title: 'Mode kontrak',
+      subtitle: 'Siapa yang mengelola HSE selama operasi (GL-WFT-OEPS-L3-78). Bersama durasi menentukan kategori kontrak.',
+      icon: Icons.account_tree_rounded,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final m in ContractMode.values) ...[
+          _ModeOption(mode: m, selected: _mode == m, onTap: () => setState(() => _mode = m)),
+          const SizedBox(height: 10),
+        ],
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          child: _mode != ContractMode.mode3
+              ? const SizedBox(width: double.infinity)
+              : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _oversight,
+                    maxLines: 3,
+                    maxLength: 2000,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Catatan HSE oversight *',
+                      alignLabelWithHint: true,
+                      helperText: 'Dasar pengakuan HSE-MS contractor (mis. sertifikasi ISO 45001, hasil audit) · min. 20 karakter',
+                    ),
+                  ),
+                  Text('Mode 3 tidak boleh memakai subcontractor. Kontrak ≤ 90 hari menjadi kategori Visitor (tanpa submission dokumen).',
+                      style: t.textTheme.bodySmall?.copyWith(color: Brand.amber)),
+                ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _tierPreview() {
+    final tier = _tier;
+    final days = _days;
+    if (tier == null) {
+      return const InfoBanner(message: 'Isi tanggal mulai & selesai untuk melihat kategori kontrak.', icon: Icons.info_outline_rounded);
+    }
+    final t = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: t.dividerColor),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Kategori kontrak (otomatis)', style: t.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          ModeBadge(_mode),
+          DurationBadge(DurationCategory.fromDays(days!), days: days),
+          TierBadge(tier),
+        ]),
+        const SizedBox(height: 10),
+        Text(tier.description, style: t.textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        Text('SLA review ${tier.reviewSlaDays} hari kerja · target BBS ${tier.bbsPerWeek}/minggu', style: t.textTheme.bodySmall),
+      ]),
+    );
+  }
+
   Widget _summary(_Refs refs) {
     final c = refs.contractors.where((x) => x['id'] == _contractorId).firstOrNull;
     final problems = _problems();
@@ -303,11 +381,13 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
         ReviewRow('Target mobilisasi', _mob == null ? '-' : fmtDate(_mob!.toIso8601String())),
         ReviewRow('Process Owner', _po?['full_name'] as String?),
         ReviewRow('HSE Reviewer', _reviewer?['full_name'] as String?),
+        const SizedBox(height: 12),
+        _tierPreview(),
         const Divider(height: 28),
         const Text('Otomatis setelah dibuat', style: TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         for (final l in const [
-          'Task post-award (CNTRCT, SCOPWK, CVKEYP, HSEDRF)',
+          'Task post-award sesuai kategori kontrak',
           'Contract Channel untuk chat',
           'Notifikasi PO/Admin: siapkan folder OneDrive',
           'Email #4001 ke contractor',
@@ -333,6 +413,47 @@ class _ContractNewPageState extends ConsumerState<ContractNewPage> {
           label: const Text('BUAT KONTRAK'),
         ),
       ]),
+    );
+  }
+}
+
+class _ModeOption extends StatelessWidget {
+  const _ModeOption({required this.mode, required this.selected, required this.onTap});
+  final ContractMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected ? Brand.blue.withValues(alpha: 0.07) : null,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? Brand.blue : t.dividerColor, width: selected ? 2 : 1),
+          ),
+          child: Row(children: [
+            ModeBadge(mode),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(mode.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(mode.hint, style: t.textTheme.bodySmall),
+              ]),
+            ),
+            Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded, color: selected ? Brand.blue : Brand.grey),
+          ]),
+        ),
+      ),
     );
   }
 }

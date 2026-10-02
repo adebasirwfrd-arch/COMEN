@@ -7,7 +7,9 @@ import '../../core/errors/app_failure.dart';
 import '../../core/session/failure_handler.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/session/session_state.dart';
+import '../../core/session/contract_classification.dart';
 import '../../data/api.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import '../contracts/contract_common.dart';
@@ -205,6 +207,7 @@ class _UsersCardState extends ConsumerState<_UsersCard> {
     final s = widget.s;
     return SectionCard(
       title: 'User perusahaan',
+      subtitle: s?.contractorLevel == null ? null : 'Level Anda: ${s!.contractorLevel!.label} — ${s.contractorLevel!.description}',
       icon: Icons.people_alt_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FutureBuilder<List<J>>(
@@ -219,6 +222,7 @@ class _UsersCardState extends ConsumerState<_UsersCard> {
                   card: {'id': u['id'], 'full_name': u['full_name'] ?? u['email'], 'avatar_url': u['avatar_url'], 'job_title': u['job_title'] ?? u['email']},
                   caption: u['id'] == s?.userId ? 'Anda' : str(u['email'], ''),
                   trailing: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    if (ContractorUserLevel.tryCode(u['level'] as String?) case final lv?) LevelBadge(lv),
                     for (final r in jl(u['roles'])) StatusBadge(Brand.blue, _roleLabel[r['role']] ?? str(r['role'])),
                     if (u['status'] != 'active') StatusBadge.account(u['status'] as String?),
                   ]),
@@ -229,7 +233,8 @@ class _UsersCardState extends ConsumerState<_UsersCard> {
         const SizedBox(height: 8),
         const InfoBanner(
           icon: Icons.admin_panel_settings_outlined,
-          message: 'Penambahan / penonaktifan user perusahaan dilakukan oleh Admin Weatherford. Rekan kerja dapat mendaftar dengan email domain perusahaan lalu menunggu persetujuan.',
+          message: 'Penambahan / penonaktifan user dan penetapan level (PIC / Supervisor / Employee) dilakukan oleh Admin Weatherford. '
+              'Rekan kerja dapat mendaftar dengan email domain perusahaan lalu menunggu persetujuan.',
         ),
       ]),
     );

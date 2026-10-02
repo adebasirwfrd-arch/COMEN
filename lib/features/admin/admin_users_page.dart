@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/session/contract_classification.dart';
+import '../../ui/classification_badges.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/security/disposable_domains.dart';
@@ -86,6 +88,7 @@ class _AdminApprovalsPageState extends ConsumerState<AdminApprovalsPage> {
             'p_contractor': g.contractorId,
             'p_expires_at': g.expiresIso,
             'p_reason': g.reason,
+            'p_contractor_level': g.contractorLevel?.code,
           }));
       if (r) ok++;
     }
@@ -528,7 +531,7 @@ class _AdminUserDetailPageState extends ConsumerState<AdminUserDetailPage> {
               if (r != null && context.mounted) await _edge('reset_mfa', r, 'MFA direset');
             }),
             const SizedBox(height: 16),
-            _ContractorCard(profile: p, canEdit: canEdit && !(p['contractor_id'] == null && status == 'active'), onChanged: _reload),
+            _ContractorCard(profile: p, row: d.row, canEdit: canEdit && !(p['contractor_id'] == null && status == 'active'), onChanged: _reload),
             const SizedBox(height: 16),
             _RolesCard(userId: widget.userId, profile: p, roles: d.roles, canEdit: canEdit && status == 'active', onChanged: _reload),
             const SizedBox(height: 16),
@@ -655,8 +658,9 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _ContractorCard extends ConsumerWidget {
-  const _ContractorCard({required this.profile, required this.canEdit, required this.onChanged});
+  const _ContractorCard({required this.profile, required this.row, required this.canEdit, required this.onChanged});
   final J profile;
+  final J? row;
   final bool canEdit;
   final VoidCallback onChanged;
 
@@ -664,6 +668,8 @@ class _ContractorCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cid = profile['contractor_id'] as String?;
     final lookups = ref.watch(adminLookupsProvider).valueOrNull;
+    final level = ContractorUserLevel.tryCode(row?['contractor_level'] as String?);
+    final canPic = sessionOf(ref)?.can('level.pic.set') == true;
     return SectionCard(
       title: 'Perusahaan',
       icon: Icons.apartment_rounded,
@@ -685,12 +691,96 @@ class _ContractorCard extends ConsumerWidget {
           : null,
       child: cid == null
           ? const Text('User WFRD (tidak terhubung ke contractor).')
-          : Row(children: [
-              Expanded(child: CellText(lookups?.contractorName(cid) ?? shortId(cid), subtitle: 'Contractor ID ${shortId(cid)}', maxWidth: 600)),
-              TextButton.icon(onPressed: () => context.go('/vendors/$cid'), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Buka vendor')),
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Expanded(child: CellText(lookups?.contractorName(cid) ?? shortId(cid), subtitle: 'Contractor ID ${shortId(cid)}', maxWidth: 600)),
+                TextButton.icon(onPressed: () => context.go('/vendors/$cid'), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Buka vendor')),
+              ]),
+              const Divider(height: 24),
+              Wrap(spacing: 10, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                const Text('Level user', style: TextStyle(fontWeight: FontWeight.w700)),
+                if (level != null) LevelBadge(level) else const Text('-'),
+                if (level != null) Text(level.description, style: Theme.of(context).textTheme.bodySmall),
+                if (canEdit && profile['status'] == 'active')
+                  TextButton.icon(
+                    onPressed: () async {
+                      final r = await showDialog<(ContractorUserLevel, String)>(
+                          context: context, builder: (_) => _SetLevelDialog(current: level, canPic: canPic));
+                      if (r == null || !context.mounted) return;
+                      final ok = await adminRun(
+                          context,
+                          ref,
+                          () => ref.read(apiProvider).rpc('admin_set_contractor_user_level',
+                              {'p_user': profile['id'], 'p_contractor': cid, 'p_level': r.$1.code, 'p_reason': r.$2}),
+                          success: 'Level user → ${r.$1.label}');
+                      if (ok) onChanged();
+                    },
+                    icon: const Icon(Icons.badge_outlined, size: 18),
+                    label: const Text('Ubah level'),
+                  ),
+              ]),
             ]),
     );
   }
+}
+
+class _SetLevelDialog extends StatefulWidget {
+  const _SetLevelDialog({required this.current, required this.canPic});
+  final ContractorUserLevel? current;
+  final bool canPic;
+  @override
+  State<_SetLevelDialog> createState() => _SetLevelDialogState();
+}
+
+class _SetLevelDialogState extends State<_SetLevelDialog> {
+  late ContractorUserLevel? _lv = widget.current;
+  final _reason = TextEditingController();
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  bool _allowed(ContractorUserLevel lv) =>
+      widget.canPic || (lv != ContractorUserLevel.pic && widget.current != ContractorUserLevel.pic);
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Ubah level user contractor'),
+        content: SizedBox(
+          width: 480,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            RadioGroup<ContractorUserLevel>(
+              groupValue: _lv,
+              onChanged: (v) => setState(() => _lv = v),
+              child: Column(children: [
+                for (final lv in ContractorUserLevel.values)
+                  RadioListTile<ContractorUserLevel>(
+                    value: lv,
+                    enabled: _allowed(lv),
+                    contentPadding: EdgeInsets.zero,
+                    title: Row(children: [LevelBadge(lv), if (!_allowed(lv)) ...[const SizedBox(width: 8), const Icon(Icons.lock_outline_rounded, size: 16, color: Brand.grey)]]),
+                    subtitle: Text(lv.description),
+                  ),
+              ]),
+            ),
+            if (!widget.canPic)
+              const InfoBanner(message: 'Menetapkan atau mencabut PIC butuh izin level.pic.set (HSE Admin).', icon: Icons.lock_outline_rounded),
+            const SizedBox(height: 12),
+            ReasonField(controller: _reason, onChanged: (_) => setState(() {})),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          FilledButton(
+            onPressed: _lv != null && _lv != widget.current && _allowed(_lv!) && _reason.text.trim().length >= 5
+                ? () => Navigator.pop(context, (_lv!, _reason.text.trim()))
+                : null,
+            child: const Text('Simpan'),
+          ),
+        ],
+      );
 }
 
 class _SetContractorDialog extends StatefulWidget {

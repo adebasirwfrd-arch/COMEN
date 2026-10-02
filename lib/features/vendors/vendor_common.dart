@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import '../contracts/contract_common.dart';
@@ -326,6 +327,8 @@ class ContractMiniList extends StatelessWidget {
                       MonoText(str(k['contract_no']), size: 12),
                       const SizedBox(width: 8),
                       StatusBadge.contract(k['status'] as String?),
+                      const SizedBox(width: 6),
+                      ClassificationBadges(k, compact: true),
                     ]),
                     subtitle: Text(str(k['title']), maxLines: 1, overflow: TextOverflow.ellipsis),
                     trailing: const Icon(Icons.chevron_right_rounded),

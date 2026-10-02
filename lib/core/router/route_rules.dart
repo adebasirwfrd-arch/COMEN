@@ -26,7 +26,7 @@ abstract final class RouteRules {
     RouteRule(RegExp(r'^/my-company$'), (s) => s.isContractor),
     RouteRule(RegExp(r'^/incidents/new$'), (s) => s.can('incident.report')),
     RouteRule(RegExp('^/incidents(/$_uuid)?\$'), (s) => s.isContractor || _wfrd(s, 'incident.view')),
-    RouteRule(RegExp(r'^/kpi$'), (s) => s.isContractor || _wfrd(s, 'kpi.view')),
+    RouteRule(RegExp(r'^/kpi$'), (s) => (s.isContractor && !s.onlyVisitorContracts) || _wfrd(s, 'kpi.view')),
     RouteRule(RegExp('^/chat(/saved|/$_uuid)?\$'), (s) => s.can('chat.use')),
     RouteRule(RegExp(r'^/register$'), (s) => s.status == 'pending' || (s.isContractor && s.vendorStatus == 'draft')),
     RouteRule(RegExp(r'^/settings/devices$'), (s) => s.status == 'active' || s.status == 'pending'),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/session/contract_classification.dart';
+import '../../ui/classification_badges.dart';
 import '../../data/api.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -33,7 +35,7 @@ class _AdminInvitesPageState extends ConsumerState<AdminInvitesPage> {
   String _q = '';
 
   Future<List<J>> _load() => ref.read(apiProvider).select('user_invites',
-      'id,email,role_id,scope_type,scope_id,contractor_id,role_expires_at,note,invited_by,expires_at,accepted_at,accepted_by,revoked_at,created_at',
+      'id,email,role_id,scope_type,scope_id,contractor_id,contractor_level,role_expires_at,note,invited_by,expires_at,accepted_at,accepted_by,revoked_at,created_at',
       build: (q) => q.order('created_at', ascending: false).limit(500));
 
   void _reload() => setState(() => _future = _load());
@@ -55,6 +57,7 @@ class _AdminInvitesPageState extends ConsumerState<AdminInvitesPage> {
               'p_role_expires_at': g.expiresIso,
               'p_note': g.note,
               'p_reason': g.reason,
+              'p_contractor_level': g.contractorLevel?.code,
             }),
         success: 'Undangan terkirim ke ${g.email}');
     if (ok) _reload();
@@ -133,6 +136,7 @@ class _AdminInvitesPageState extends ConsumerState<AdminInvitesPage> {
                             Wrap(spacing: 6, children: [
                               Text(lookups?.roleName(i['role_id'] as String?) ?? shortId(i['role_id']), style: const TextStyle(fontWeight: FontWeight.w600)),
                               if (i['role_expires_at'] != null) StatusBadge(Brand.amber, 'role s/d ${fmtDate(i['role_expires_at'])}'),
+                              if (ContractorUserLevel.tryCode(i['contractor_level'] as String?) case final lv?) LevelBadge(lv),
                             ]),
                             Text(i['contractor_id'] != null
                                 ? (lookups?.contractorName(i['contractor_id'] as String?) ?? shortId(i['contractor_id']))

@@ -8,6 +8,7 @@ import '../../core/security/url_policy.dart';
 import '../../core/session/failure_handler.dart';
 import '../../core/session/session_controller.dart';
 import '../../data/api.dart';
+import '../../ui/classification_badges.dart';
 import '../../ui/labels.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -64,6 +65,7 @@ class _TaskView extends ConsumerWidget {
     final contractor = _m(data['contractor']);
     final status = t['status'] as String;
     final canConfirm = data['can_confirm'] == true;
+    final blockReason = data['confirm_block_reason'] as String?;
     final canReview = data['can_review'] == true;
     final st = ref.watch(sessionProvider);
     final s = st is SessionReady ? st.s : null;
@@ -91,8 +93,17 @@ class _TaskView extends ConsumerWidget {
         if (s != null && s.isWfrd) _WfrdMenu(task: t, s: s.permissions, onChanged: onChanged),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _Header(task: t, doc: doc),
+        _Header(task: t, doc: doc, contract: contract),
         const SizedBox(height: 16),
+        if (blockReason != null && (open || status == 'awaiting_email'))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: InfoBanner(
+              message: '$blockReason. Minta PIC/Supervisor perusahaan Anda untuk menyelesaikan task ini.',
+              color: Brand.amber,
+              icon: Icons.lock_person_outlined,
+            ),
+          ),
         if (t['status_reason'] != null && const {'file_issue', 'revise', 'rejected', 'waived', 'cancelled', 'superseded'}.contains(status))
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -127,8 +138,9 @@ class _TaskView extends ConsumerWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.task, required this.doc});
+  const _Header({required this.task, required this.doc, this.contract});
   final J task, doc;
+  final J? contract;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +158,7 @@ class _Header extends StatelessWidget {
         if (task['is_blocker'] == true) const StatusBadge(Brand.red, 'Gate blocker', icon: Icons.block_rounded),
         if (doc['sensitive'] == true) const StatusBadge(Brand.purple, 'Sensitif', icon: Icons.lock_rounded),
         if ((task['revision'] as num? ?? 0) > 0) StatusBadge(Brand.amber, 'Revisi ${task['revision']}', icon: Icons.history_rounded),
+        if (contract != null) ClassificationBadges(contract!, compact: true),
       ]),
     );
   }

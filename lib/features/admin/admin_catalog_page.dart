@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/session/contract_classification.dart';
 import '../../core/session/failure_handler.dart';
 import '../../data/api.dart';
 import '../../ui/labels.dart';
@@ -11,7 +12,7 @@ import 'admin_widgets.dart';
 
 const _catalogCols = 'code,label,allowed_scopes,kind,phase,requirement,condition_key,min_risk_class,vendor_requirement,vendor_condition_key,'
     'subcon_required,reviewer_role,requires_email,requires_expiry,requires_fingerprint,sensitive,due_anchor,due_offset_days,review_sla_days,'
-    'is_mob_gate,checklist_template,active';
+    'is_mob_gate,checklist_template,active,applicable_tiers';
 const _kinds = ['document', 'evidence', 'form', 'checklist', 'action'];
 const _scopes = ['vendor', 'contract', 'subcontractor'];
 const _requirements = ['mandatory', 'conditional', 'optional', 'recurring', 'adhoc'];
@@ -98,7 +99,7 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
             ],
             child: DataList(
               empty: 'Tidak ada jenis dokumen cocok',
-              columns: const ['Kode', 'Label', 'Jenis', 'Fase', 'Scope', 'Requirement', 'Reviewer', 'Atribut', 'SLA', 'Status', ''],
+              columns: const ['Kode', 'Label', 'Jenis', 'Fase', 'Scope', 'Requirement', 'Kategori kontrak', 'Reviewer', 'Atribut', 'SLA', 'Status', ''],
               onTap: (i) => _edit(list[i]),
               rows: [
                 for (final d in list)
@@ -109,6 +110,7 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
                     Text(Labels.phaseOf(d['phase'])),
                     Text((d['allowed_scopes'] as List? ?? const []).map((s) => Labels.of(Labels.scope, s)).join(', ')),
                     Text([if (d['requirement'] != null) d['requirement'], if (d['vendor_requirement'] != null) 'vendor:${d['vendor_requirement']}'].join(' · ').ifEmpty('-')),
+                    Text((d['allowed_scopes'] as List? ?? const []).contains('contract') ? _tiersOf(d).map((t) => t.label).join(', ').ifEmpty('-') : '-'),
                     Text(str(d['reviewer_role'])),
                     Wrap(spacing: 4, children: [
                       if (d['requires_email'] == true) const Tooltip(message: 'Wajib email konfirmasi', child: Icon(Icons.mail_outline_rounded, size: 16, color: Brand.blue)),
@@ -132,6 +134,11 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
   }
 }
 
+List<AccessTier> _tiersOf(J d) => [
+      for (final t in AccessTier.values)
+        if ((d['applicable_tiers'] as List? ?? const ['full']).contains(t.code)) t,
+    ];
+
 extension on String {
   String ifEmpty(String v) => isEmpty ? v : this;
 }
@@ -154,6 +161,7 @@ class _DocTypeDialogState extends State<_DocTypeDialog> {
   late final _sla = TextEditingController(text: _d['review_sla_days']?.toString() ?? '3');
   late final _checklist = TextEditingController(text: _d['checklist_template'] == null ? '' : prettyJson(_d['checklist_template']));
   late final Set<String> _scopesSel = {...(_d['allowed_scopes'] as List? ?? const []).cast<String>()};
+  late final Set<AccessTier> _tiers = {..._tiersOf(_d)};
   final _reason = TextEditingController();
 
   bool get _isNew => widget.doc == null;
@@ -175,6 +183,7 @@ class _DocTypeDialogState extends State<_DocTypeDialog> {
     if (!RegExp(r'^[A-Z0-9]{6}$').hasMatch(_code.text.trim())) return 'Kode harus 6 karakter A-Z0-9';
     if (_label.text.trim().isEmpty) return 'Label wajib';
     if (_scopesSel.isEmpty) return 'Pilih minimal satu scope';
+    if (_tiers.isEmpty) return 'Pilih minimal satu kategori kontrak';
     if (_d['reviewer_role'] == null) return 'Pilih reviewer role';
     if (_d['requirement'] == 'conditional' && _cond.text.trim().isEmpty && _d['min_risk_class'] == null) return 'Requirement conditional butuh condition key atau min. risk class';
     if (_d['vendor_requirement'] != null && !_scopesSel.contains('vendor')) return 'Vendor requirement butuh scope vendor';
@@ -208,6 +217,7 @@ class _DocTypeDialogState extends State<_DocTypeDialog> {
         'is_mob_gate': _b('is_mob_gate'),
         'checklist_template': _checklist.text.trim().isEmpty ? null : jsonDecode(_checklist.text.trim()),
         'active': _b('active'),
+        'applicable_tiers': [for (final t in AccessTier.values) if (_tiers.contains(t)) t.code],
       };
 
   Widget _dd(String label, String key, Map<String?, String> items) => DropdownButtonFormField<String?>(
@@ -258,6 +268,23 @@ class _DocTypeDialogState extends State<_DocTypeDialog> {
                   onSelected: (v) => setState(() => v ? _scopesSel.add(s) : _scopesSel.remove(s)),
                 ),
             ]),
+            if (_scopesSel.contains('contract')) ...[
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                const Tooltip(
+                  message: 'Dokumen hanya dihitung untuk kontrak dengan kategori yang dicentang (mode × durasi). '
+                      'Perubahan berlaku saat requirement kontrak dihitung ulang.',
+                  child: Text('Kategori kontrak *', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+                for (final t in AccessTier.values)
+                  FilterChip(
+                    label: Text(t.label),
+                    tooltip: t.description,
+                    selected: _tiers.contains(t),
+                    onSelected: (v) => setState(() => v ? _tiers.add(t) : _tiers.remove(t)),
+                  ),
+              ]),
+            ],
             const GroupLabel('Aturan kebutuhan'),
             ResponsiveGrid(minItemWidth: 220, spacing: 12, children: [
               _dd('Requirement (kontrak)', 'requirement', {null: '-', for (final r in _requirements) r: r}),

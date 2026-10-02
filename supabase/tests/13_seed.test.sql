@@ -6,7 +6,7 @@ SELECT plan(9);
 
 SELECT is((SELECT count(*)::INT FROM roles WHERE is_system), 10, '10 role sistem');
 SELECT ok((SELECT count(*) FROM permissions) >= 60, 'katalog permission lengkap');
-SELECT is((SELECT count(*)::INT FROM doc_type_catalog), 49, '49 kode dokumen');
+SELECT is((SELECT count(*)::INT FROM doc_type_catalog), 50, '50 kode dokumen (49 v3.2 + VISACK v3.3)');
 SELECT ok((SELECT count(*) FROM doc_type_catalog WHERE is_mob_gate) >= 13, 'minimal 13 dokumen gate mobilisasi');
 SELECT is((SELECT sum(w.value::INT)::INT FROM app_settings s, jsonb_each_text(s.value) AS w WHERE s.key = 'kpi_weights'),
           100, 'bobot KPI = 100');

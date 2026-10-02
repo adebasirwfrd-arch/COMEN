@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/session/failure_handler.dart';
 import '../../core/session/session_state.dart';
+import '../../core/session/contract_classification.dart';
 import '../../data/api.dart';
 import '../../ui/labels.dart';
 import '../../ui/theme.dart';
@@ -180,7 +181,7 @@ class _ContractSubcontractorsTabState extends ConsumerState<ContractSubcontracto
   Widget build(BuildContext context) {
     final s = watchSession(ref)!;
     final canAdd = const {'post_award', 'pre_mobilization', 'mobilization', 'active'}.contains(widget.c.status) &&
-        (s.isWfrd ? s.can('contract.edit') : s.can('record.submit'));
+        (s.isWfrd ? s.can('contract.edit') : s.can('record.submit') && (s.contractorLevel?.atLeast(ContractorUserLevel.supervisor) ?? false));
     final canDecide = s.isWfrd && s.can('subcon.approve') && !widget.c.isFinal;
     return AsyncView<_SubData>(
       future: _future,
