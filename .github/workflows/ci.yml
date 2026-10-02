@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: OSV scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.0.2
+        with:
+          scan-args: --recursive ./
+        continue-on-error: true
+
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Supabase env (dummy, lokal CI)
+        run: |
+          printf 'GOOGLE_CLIENT_ID=ci-dummy\nGOOGLE_CLIENT_SECRET=ci-dummy\nTURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA\n' > supabase/.env
+      - run: supabase start -x storage-api,imgproxy,logflare,vector,supavisor,studio
+      - run: supabase db reset            # migration + seed lokal; asersi 14.16/14.18 harus lolos
+      - run: supabase test db             # pgTAP (22.2)
+      - run: supabase db lint --level error
+
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - working-directory: supabase/functions
+        run: deno check */index.ts
+      - working-directory: supabase/functions
+        run: deno lint
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test test/core/app_failure_test.dart
+      - run: flutter test --platform chrome
+      - run: scripts/check_rpc_allowlist.sh
+      - name: Build web (production)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+        run: |
+          flutter build web --release --csp --no-web-resources-cdn \
+            --dart-define=SUPABASE_URL="${SUPABASE_URL:-https://example.supabase.co}" \
+            --dart-define=SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-ci-placeholder}" \
+            --dart-define=TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-1x00000000000000000000AA}" \
+            --dart-define=VAPID_PUBLIC_KEY="${VAPID_PUBLIC_KEY:-}" \
+            --dart-define=APP_ORIGIN="${APP_ORIGIN:-https://comen.vercel.app}" \
+            --dart-define=COMEN_ENV=production
+      - run: COMEN_ENV=production scripts/check_bundle.sh build/web
+      - uses: actions/upload-artifact@v4
+        with: { name: web, path: build/web, retention-days: 7 }
+
+  deploy:
+    needs: [security, db, edge, app]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: web, path: build/web }
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Supabase migrations & functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref xyttrxynkwjfqdurscdy -p "$SUPABASE_DB_PASSWORD"
+          supabase db push
+          supabase functions deploy --project-ref xyttrxynkwjfqdurscdy --no-verify-jwt
+      - name: Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          cp vercel.json build/web/vercel.json
+          url=$(npx vercel@latest deploy build/web --prod --yes --token "$VERCEL_TOKEN" | grep -Eo 'https://comen-[a-z0-9]+-[a-z0-9-]+\.vercel\.app' | head -1)
+          npx vercel@latest alias set "$url" comen.vercel.app --token "$VERCEL_TOKEN"

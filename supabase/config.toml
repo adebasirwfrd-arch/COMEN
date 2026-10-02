@@ -1,0 +1,125 @@
+project_id = "comen"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]                     # lokal saja (db reset); TIDAK dijalankan oleh db push
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 54324
+
+[storage]
+enabled = false                                # P1: zero file storage
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 900                               # 15 menit (3.4)
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10              # toleransi tab paralel (16.4)
+enable_signup = true                           # akun baru = pending (approval Admin)
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+minimum_password_length = 12                   # password hanya untuk mock lokal (password_login_enabled)
+
+[auth.rate_limit]
+email_sent = 30
+token_refresh = 150
+token_verifications = 30
+sign_in_sign_ups = 30
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+otp_length = 6
+otp_expiry = 600
+max_frequency = "60s"
+
+[auth.sms]
+enable_signup = false
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.captcha]                                 # C16: off di lokal; staging/prod diaktifkan di Dashboard
+enabled = false
+provider = "turnstile"
+secret = "env(TURNSTILE_SECRET_KEY)"
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+skip_nonce_check = false
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+deno_version = 2
+
+[analytics]
+enabled = false
+
+# Production (supabase config push --project-ref xyttrxynkwjfqdurscdy) — rahasia dibaca dari env saat push
+[remotes.production]
+project_id = "xyttrxynkwjfqdurscdy"
+
+[remotes.production.auth]
+site_url = "https://comen.vercel.app"
+additional_redirect_urls = ["https://comen.vercel.app/auth/callback", "http://localhost:3000/auth/callback"]
+
+[remotes.production.auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(TURNSTILE_SECRET_KEY)"
+
+[remotes.production.auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+redirect_uri = "https://xyttrxynkwjfqdurscdy.supabase.co/auth/v1/callback"
+skip_nonce_check = false
+
+# A19: verifikasi di dalam function
+[functions.notify-dispatch]
+verify_jwt = false
+[functions.audit-anchor]
+verify_jwt = false
+[functions.submit-registration]
+verify_jwt = false
+[functions.admin-actions]
+verify_jwt = false
+[functions.inbound-email]
+verify_jwt = false
+[functions.brevo-webhook]
+verify_jwt = false

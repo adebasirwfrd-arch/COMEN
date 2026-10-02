@@ -1,0 +1,34 @@
+# Secrets — never commit
+BLUEPRINT/
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+*.pem
+*.key
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec_overrides.yaml
+coverage/
+
+# Supabase
+supabase/.branches
+supabase/.temp
+
+# IDE / OS
+.DS_Store
+.idea/
+*.iml
+.vscode/
+.vercel
+
+# Logs
+*.log

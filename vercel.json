@@ -1,0 +1,29 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/((?!assets/|canvaskit/|icons/|fonts/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://lh3.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://xyttrxynkwjfqdurscdy.supabase.co wss://xyttrxynkwjfqdurscdy.supabase.co https://fonts.gstatic.com https://challenges.cloudflare.com https://*.ingest.sentry.io; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), interest-cohort=()" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" }
+      ]
+    },
+    {
+      "source": "/(index.html|flutter_bootstrap.js|secure_store.js|push_sw.js|main.dart.js|version.json|)",
+      "headers": [ { "key": "Cache-Control", "value": "no-cache" } ]
+    },
+    {
+      "source": "/(canvaskit|assets)/(.*)",
+      "headers": [ { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" } ]
+    }
+  ]
+}
