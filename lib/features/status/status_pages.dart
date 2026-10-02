@@ -8,10 +8,23 @@ import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
 /// Latar halaman status/auth: gradien navy + kartu tengah.
-class BrandBackdrop extends StatelessWidget {
+class BrandBackdrop extends StatefulWidget {
   const BrandBackdrop({super.key, required this.child, this.maxWidth = 480});
   final Widget child;
   final double maxWidth;
+
+  @override
+  State<BrandBackdrop> createState() => _BrandBackdropState();
+}
+
+class _BrandBackdropState extends State<BrandBackdrop> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,23 +56,39 @@ class BrandBackdrop extends StatelessWidget {
               decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Brand.blue.withValues(alpha: 0.35), Colors.transparent])),
             ),
           ),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const _Logo(),
-                  const SizedBox(height: 28),
-                  Card(
-                    elevation: 12,
-                    shadowColor: Colors.black45,
-                    child: Padding(padding: const EdgeInsets.all(32), child: child),
-                  ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic),
-                  const SizedBox(height: 20),
-                  const Text('© Weatherford · COMEN v3.2 · Zero-file-storage · AES-256',
-                      style: TextStyle(color: Colors.white54, fontSize: 12)),
-                ]),
+          // Area scroll selebar layar: wheel/trackpad di luar kartu juga harus menggulir.
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, box) => Scrollbar(
+                controller: _scroll,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: (box.maxWidth - 48).clamp(0.0, double.infinity),
+                      minHeight: (box.maxHeight - 48).clamp(0.0, double.infinity),
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const _Logo(),
+                          const SizedBox(height: 28),
+                          Card(
+                            elevation: 12,
+                            shadowColor: Colors.black45,
+                            child: Padding(padding: const EdgeInsets.all(32), child: widget.child),
+                          ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic),
+                          const SizedBox(height: 20),
+                          const Text('© Weatherford · COMEN v3.2 · Zero-file-storage · AES-256',
+                              style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
