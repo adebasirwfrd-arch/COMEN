@@ -8,7 +8,9 @@ REF="xyttrxynkwjfqdurscdy"
 [[ -f .env.production.local ]] || { echo "✗ .env.production.local tidak ada"; exit 1; }
 [[ -f BLUEPRINT/secret.md ]] || { echo "✗ BLUEPRINT/secret.md tidak ada"; exit 1; }
 
-eval "$(python3 - <<'PY'
+# bash 3.2 (macOS) salah mem-parse heredoc di dalam $(...) → tulis ke file sementara lalu source
+TMP_ENV="$(mktemp)"; chmod 600 "$TMP_ENV"; trap 'rm -f "$TMP_ENV"' EXIT
+python3 - > "$TMP_ENV" <<'PY'
 import json, re, shlex
 s = open('BLUEPRINT/secret.md').read()
 g = json.loads(s[s.index('{'):s.rindex('}') + 1])['web']
@@ -21,13 +23,14 @@ for line in open('.env.production.local'):
     if line.startswith('TURNSTILE_SECRET_KEY='):
         print(f"export TURNSTILE_SECRET_KEY={shlex.quote(line.split('=', 1)[1])}")
 PY
-)"
+# shellcheck disable=SC1090
+source "$TMP_ENV"
 
 echo "→ link project $REF"
 supabase link --project-ref "$REF" -p "$SUPABASE_DB_PASSWORD" >/dev/null
 
 echo "→ push konfigurasi Auth (site URL, redirect, Google, Turnstile captcha, MFA TOTP, JWT 900 s)"
-yes | supabase config push --project-ref "$REF"
+supabase config push --project-ref "$REF" --yes
 
 echo "→ set secret Edge Function"
 supabase secrets set --project-ref "$REF" --env-file .env.production.local >/dev/null
