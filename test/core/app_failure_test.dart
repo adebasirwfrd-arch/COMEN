@@ -21,11 +21,18 @@ void main() {
         'duplicate_tax_id': Hint.duplicateTaxId,
         'captcha_required': Hint.captchaRequired,
         'login_method_disabled': Hint.loginMethodDisabled,
+        'insufficient_level': Hint.forbidden,
+        'use_moc': Hint.forbidden,
       };
       m.forEach((hint, expected) {
         final f = AppFailure.from(PostgrestException(message: 'x', code: '42501', hint: hint));
         expect(f.hint, expected, reason: hint);
       });
+    });
+
+    test('pesan level / MOC dari server tetap ditampilkan', () {
+      final f = AppFailure.from(const PostgrestException(message: 'Hanya PIC dan Supervisor', code: '42501', hint: 'insufficient_level'));
+      expect(f.message, 'Hanya PIC dan Supervisor');
     });
 
     test('kode SQLSTATE', () {

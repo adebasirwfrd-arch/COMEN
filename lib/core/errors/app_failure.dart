@@ -15,6 +15,7 @@ const _hintMap = <String, Hint>{
   'forbidden': Hint.forbidden, 'read_only': Hint.readOnly, 'rate_limited': Hint.rateLimited,
   'duplicate_tax_id': Hint.duplicateTaxId, 'captcha_required': Hint.captchaRequired,
   'login_method_disabled': Hint.loginMethodDisabled,
+  'insufficient_level': Hint.forbidden, 'use_moc': Hint.forbidden,
 };
 
 class AppFailure implements Exception {
