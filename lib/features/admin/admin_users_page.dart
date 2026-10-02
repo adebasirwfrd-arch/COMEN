@@ -559,10 +559,10 @@ class _StatusMenu extends StatelessWidget {
     final items = <PopupMenuEntry<String>>[
       if (status == 'active') ...[
         const PopupMenuItem(value: 'suspend', child: ListTile(leading: Icon(Icons.pause_circle_outline_rounded, color: Brand.red), title: Text('Suspend + ban'))),
-        const PopupMenuItem(value: 'deactivate', child: ListTile(leading: Icon(Icons.person_off_outlined), title: Text('Nonaktifkan (deactivate)'))),
+        const PopupMenuItem(value: 'deactivate', child: ListTile(leading: Icon(Icons.person_off_outlined), title: Text('Nonaktifkan (resign / keluar)'))),
       ],
       if (status == 'suspended' || status == 'deactivated')
-        const PopupMenuItem(value: 'reactivate', child: ListTile(leading: Icon(Icons.play_circle_outline_rounded, color: Brand.green), title: Text('Aktifkan kembali + unban'))),
+        const PopupMenuItem(value: 'reactivate', child: ListTile(leading: Icon(Icons.play_circle_outline_rounded, color: Brand.green), title: Text('Aktifkan kembali'))),
     ];
     if (items.isEmpty) return const SizedBox.shrink();
     return PopupMenuButton<String>(
@@ -571,8 +571,16 @@ class _StatusMenu extends StatelessWidget {
       onSelected: (v) async {
         final (title, msg, label, ok) = switch (v) {
           'suspend' => ('Suspend user', 'Akun ditangguhkan, semua sesi dicabut, dan identitas Auth di-ban.', 'Suspend', 'User disuspend'),
-          'deactivate' => ('Nonaktifkan user', 'Akun dinonaktifkan permanen (dapat diaktifkan kembali).', 'Nonaktifkan', 'User dinonaktifkan'),
-          _ => ('Aktifkan kembali', 'Akun aktif kembali dan identitas Auth di-unban.', 'Aktifkan', 'User diaktifkan'),
+          'deactivate' => (
+              'Nonaktifkan user',
+              'Untuk user yang resign / keluar. Semua sesi dicabut, tetapi akun TIDAK di-ban. '
+                  'Bila orang ini login lagi, akunnya mulai dari awal sebagai akun baru (pending): role, perusahaan, dan '
+                  'keanggotaan chat lama dilepas, lalu Anda bisa meng-approve-nya dengan role baru (mis. karyawan WFRD) '
+                  'atau mengundangnya lebih dulu lewat Invite.',
+              'Nonaktifkan',
+              'User dinonaktifkan'
+            ),
+          _ => ('Aktifkan kembali', 'Akun aktif kembali dengan role & perusahaan yang masih tercatat (identitas Auth di-unban bila sebelumnya di-ban).', 'Aktifkan', 'User diaktifkan'),
         };
         final r = await showReasonDialog(context, title: title, message: msg, confirmLabel: label, destructive: v != 'reactivate');
         if (r != null && context.mounted) await onAction(v, r, ok);

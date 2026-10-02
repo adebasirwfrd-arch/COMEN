@@ -241,13 +241,26 @@ class AccountClosedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(sessionProvider);
     final reason = s is SessionReady ? s.s.statusReason : null;
+    final deactivated = s is SessionReady && s.s.status == 'deactivated';
+    final base = reason == null ? 'Akun ini tidak lagi aktif.' : 'Alasan: $reason';
     return BrandBackdrop(
       child: StatusMessage(
         icon: Icons.person_off_rounded,
         color: Brand.grey,
-        title: 'Akun ditutup / ditolak',
-        message: reason == null ? 'Akun ini tidak lagi aktif.' : 'Alasan: $reason',
-        actions: [OutlinedButton(onPressed: () => ref.read(sessionProvider.notifier).signOutLocal(), child: const Text('Keluar'))],
+        title: deactivated ? 'Akun dinonaktifkan' : 'Akun ditutup / ditolak',
+        message: deactivated
+            ? '$base\n\nIngin bergabung kembali? Keluar lalu masuk lagi — akun Anda akan didaftarkan ulang sebagai akun baru '
+                'dan menunggu persetujuan Admin.'
+            : base,
+        actions: [
+          deactivated
+              ? FilledButton.icon(
+                  onPressed: () => ref.read(sessionProvider.notifier).signOutLocal(),
+                  icon: const Icon(Icons.login_rounded),
+                  label: const Text('Keluar & daftar ulang'),
+                )
+              : OutlinedButton(onPressed: () => ref.read(sessionProvider.notifier).signOutLocal(), child: const Text('Keluar')),
+        ],
       ),
     );
   }

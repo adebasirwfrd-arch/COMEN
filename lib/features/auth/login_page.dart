@@ -66,7 +66,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       'reauth' => 'Sesi berakhir, silakan masuk lagi.',
       'otp_disabled' => 'Login via email dinonaktifkan Admin, gunakan Google.',
       'auth_error' => 'Login sebelumnya gagal atau link login sudah kedaluwarsa. Silakan masuk lagi.',
-      'account_disabled' => 'Akun ini sudah dinonaktifkan Admin dan tidak bisa dipakai untuk masuk. Hubungi admin WFRD bila ini keliru.',
+      'account_disabled' => 'Akun ini sedang ditangguhkan (suspend) oleh Admin dan tidak bisa dipakai untuk masuk. Hubungi admin WFRD bila ini keliru.',
       _ => null,
     };
     return BrandBackdrop(
