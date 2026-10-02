@@ -23,6 +23,13 @@ void main() {
         'login_method_disabled': Hint.loginMethodDisabled,
         'insufficient_level': Hint.forbidden,
         'use_moc': Hint.forbidden,
+        'act_as_invalid': Hint.actAsEnded,
+        'act_as_closed': Hint.actAsEnded,
+        'act_as_expired': Hint.actAsEnded,
+        'act_as_mfa': Hint.actAsEnded,
+        'act_as_forbidden': Hint.actAsEnded,
+        'act_as_target_invalid': Hint.actAsEnded,
+        'act_as_blocked': Hint.actAsBlocked,
       };
       m.forEach((hint, expected) {
         final f = AppFailure.from(PostgrestException(message: 'x', code: '42501', hint: hint));

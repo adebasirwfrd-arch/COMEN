@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/errors/app_failure.dart';
+import '../core/session/act_as.dart';
 
 final apiProvider = Provider<Api>((_) => Api(Supabase.instance.client));
 
@@ -10,7 +11,8 @@ class Api {
   Api(this.sb);
   final SupabaseClient sb;
 
-  String? get uid => sb.auth.currentUser?.id;
+  /// Identitas efektif (target saat Act As mode user) — dipakai untuk "milik saya" (chat, filter task).
+  String? get uid => ActAsRuntime.effectiveUserId ?? sb.auth.currentUser?.id;
 
   Future<dynamic> rpc(String fn, [Map<String, dynamic>? params]) =>
       guard(() async => await sb.rpc(fn, params: params ?? const {}));

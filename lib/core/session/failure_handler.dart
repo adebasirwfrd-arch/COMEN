@@ -46,6 +46,11 @@ Future<void> handleFailure(BuildContext context, WidgetRef ref, Object error) as
       if (context.mounted) showSnack(context, 'Verifikasi manusia diperlukan. Selesaikan captcha lalu coba lagi.', error: true);
     case Hint.stepUpRequired:
       if (context.mounted) showSnack(context, 'Verifikasi MFA diperlukan untuk aksi ini.', error: true);
+    case Hint.actAsBlocked:
+      if (context.mounted) showSnack(context, f.message, error: true);
+    case Hint.actAsEnded:
+      if (context.mounted) showSnack(context, 'Sesi Act As berakhir: ${f.message}', error: true);
+      await session.handle(f);
     case Hint.network:
     case Hint.unknown:
       if (context.mounted) showSnack(context, f.message, error: true);

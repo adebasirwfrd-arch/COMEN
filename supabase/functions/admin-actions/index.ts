@@ -8,6 +8,9 @@ const BAN = '876000h';                                     // ±100 tahun
 
 Deno.serve(handle(async (req) => {
   await requireUser(req);
+  if (req.headers.get('x-comen-act-as')) {
+    throw new HttpError(403, '42501', 'act_as_blocked', 'Aksi Admin Console tidak tersedia saat mode Act As. Keluar dari Act As terlebih dahulu.');
+  }
   const b = await readJson<Body>(req);
   if (!b.action || !b.user_id || !UUID.test(b.user_id)) throw new HttpError(400, 'invalid_request');
   const asUser = userClient(req);                           // otorisasi SELALU diputuskan DB atas nama pemanggil

@@ -5,6 +5,10 @@ enum Hint {
   unauthenticated, accountInactive, deviceMissing, deviceUnregistered, deviceRevoked, deviceMismatch,
   reauthRequired, mfaRequired, stepUpRequired, forbidden, readOnly, rateLimited, duplicateTaxId,
   captchaRequired, loginMethodDisabled, validation, network, unknown,
+  /// Token Act As tidak berlaku lagi (kedaluwarsa/ditutup/target berubah) → keluar dari Act As.
+  actAsEnded,
+  /// Aksi tidak tersedia selama Act As (Admin Console, data pribadi target).
+  actAsBlocked,
 }
 
 const _hintMap = <String, Hint>{
@@ -16,6 +20,9 @@ const _hintMap = <String, Hint>{
   'duplicate_tax_id': Hint.duplicateTaxId, 'captcha_required': Hint.captchaRequired,
   'login_method_disabled': Hint.loginMethodDisabled,
   'insufficient_level': Hint.forbidden, 'use_moc': Hint.forbidden,
+  'act_as_invalid': Hint.actAsEnded, 'act_as_closed': Hint.actAsEnded, 'act_as_expired': Hint.actAsEnded,
+  'act_as_target_invalid': Hint.actAsEnded, 'act_as_forbidden': Hint.actAsEnded, 'act_as_mfa': Hint.actAsEnded,
+  'act_as_blocked': Hint.actAsBlocked,
 };
 
 class AppFailure implements Exception {

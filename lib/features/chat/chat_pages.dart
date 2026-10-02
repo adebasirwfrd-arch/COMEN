@@ -1131,7 +1131,7 @@ class _RoomState extends ConsumerState<_Room> {
   }
 
   bool _groupable(J a, J b) {
-    if (a['sender_id'] == null || a['sender_id'] != b['sender_id']) return false;
+    if (a['sender_id'] == null || a['sender_id'] != b['sender_id'] || a['via_act_as'] != b['via_act_as']) return false;
     if (_isBotKind(a) || _isBotKind(b) || b['reply_to'] != null || b['priority'] != 'normal' || b['kind'] == 'announcement') return false;
     final da = parseDate(a['created_at']), db = parseDate(b['created_at']);
     return da != null && db != null && db.difference(da).inMinutes.abs() < 5;
@@ -1602,6 +1602,17 @@ class _MessageTileState extends State<_MessageTile> {
                 Text(str(widget.senderCard!['company']), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
               Tooltip(message: fmtDateTime(m['created_at']), child: Text(_hm(m['created_at']), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant))),
               if (m['edited_at'] != null && m['deleted'] != true) Text('Diedit', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
+              if (m['via_act_as'] == true)
+                Tooltip(
+                  message: m['via_act_as_name'] != null
+                      ? 'Dikirim oleh ${m['via_act_as_name']} melalui Act As'
+                      : 'Dikirim admin Weatherford melalui Act As',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(color: Brand.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                    child: const Text('via Act As', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Brand.red)),
+                  ),
+                ),
               if (m['pinned'] == true) const Icon(Icons.push_pin, size: 12, color: Brand.purple),
               if (m['saved'] == true) const Icon(Icons.bookmark, size: 12, color: Brand.blue),
             ]),

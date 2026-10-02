@@ -1,4 +1,5 @@
 // lib/core/session/session_state.dart
+import 'act_as.dart';
 import 'contract_classification.dart';
 
 class SessionState {
@@ -16,7 +17,13 @@ class SessionState {
         deviceState = j['device_state'] as String, readOnly = j['read_only_mode'] == true,
         emailOtpEnabled = j['email_otp_enabled'] != false, unread = (j['unread_notifications'] as num?)?.toInt() ?? 0,
         contractorLevel = ContractorUserLevel.tryCode(j['contractor_level'] as String?),
-        activeContracts = List<Map<String, dynamic>>.from(j['active_contracts'] as List? ?? const []);
+        activeContracts = List<Map<String, dynamic>>.from(j['active_contracts'] as List? ?? const []),
+        actAs = j['act_as'] is Map ? ActAsContext.fromJson(Map<String, dynamic>.from(j['act_as'] as Map)) : null,
+        realUserId = (j['real_user_id'] as String?) ?? j['user_id'] as String,
+        realEmail = (j['real_email'] as String?) ?? j['email'] as String,
+        realFullName = j['real_full_name'] as String?,
+        realIsRootAdmin = j['real_is_root_admin'] == true,
+        canActAs = j['can_act_as'] == true;
 
   final String userId, email, status, deviceState, aal, locale;
   final String? fullName, avatarUrl, statusReason, contractorId, contractorName, vendorStatus;
@@ -31,6 +38,16 @@ class SessionState {
   /// Kontrak perusahaan yang belum closed/terminated (hanya untuk user contractor).
   final List<Map<String, dynamic>> activeContracts;
 
+  /// Konteks Act As aktif. Saat aktif, field identitas di atas = identitas efektif; real* = super admin yang login.
+  final ActAsContext? actAs;
+  final String realUserId, realEmail;
+  final String? realFullName;
+  final bool realIsRootAdmin;
+
+  /// Super admin nyata (boleh membuka switcher Act As; sesi tetap butuh aal2).
+  final bool canActAs;
+
+  bool get isActingAs => actAs != null;
   bool get isContractor => contractorId != null && status == 'active';
   bool can(String p) => permissions.contains(p);
   bool canAny(Iterable<String> ps) => ps.any(permissions.contains);

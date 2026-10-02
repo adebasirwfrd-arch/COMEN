@@ -10,7 +10,7 @@ export function corsHeaders(req: Request): Record<string, string> | null {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-device-id, x-supabase-api-version, x-region',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-device-id, x-comen-act-as, x-supabase-api-version, x-region',
     'Access-Control-Max-Age': '600',
     'Vary': 'Origin',
   };

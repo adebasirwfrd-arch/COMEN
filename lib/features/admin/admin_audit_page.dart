@@ -25,6 +25,13 @@ const auditedTables = [
     };
 
 /// Kunci yang berubah antara old_data dan new_data.
+/// Identitas yang dipakai saat aksi dilakukan lewat Act As (null = aksi langsung).
+String? _actAsLabel(J r) {
+  if (r['act_as_user_id'] != null) return 'Act As ${str(r['act_as_user_email'], shortId(r['act_as_user_id']))}';
+  if (r['act_as_role_key'] != null) return 'Act As role ${r['act_as_role_key']}';
+  return null;
+}
+
 List<String> changedKeys(J row) {
   final o = jm(row['old_data']), n = jm(row['new_data']);
   final keys = {...o.keys, ...n.keys}.toList()..sort();
@@ -311,7 +318,11 @@ class _AdminAuditPageState extends ConsumerState<AdminAuditPage> {
                 MonoText(str(r['table_name']), size: 12),
                 StatusBadge(_actionStyle(r['action'] as String?).$1, _actionStyle(r['action'] as String?).$2),
                 CellText(str(r['record_id']), mono: true, maxWidth: 200),
-                CellText(r['actor_id'] == null ? 'Sistem' : str(r['actor_email'], shortId(r['actor_id'])), maxWidth: 220),
+                CellText(
+                  r['actor_id'] == null ? 'Sistem' : str(r['actor_email'], shortId(r['actor_id'])),
+                  subtitle: _actAsLabel(r),
+                  maxWidth: 220,
+                ),
                 CellText(r['action'] == 'UPDATE' ? changedKeys(r).join(', ') : (r['action'] == 'INSERT' ? 'baris baru' : 'baris dihapus'), maxWidth: 260),
               ],
           ],
@@ -350,6 +361,7 @@ class _AdminAuditPageState extends ConsumerState<AdminAuditPage> {
               KeyValueGrid([
                 ('Waktu', Text(fmtDateTime(r['created_at']))),
                 ('Actor', SelectableText(r['actor_id'] == null ? 'Sistem' : str(r['actor_email'], str(r['actor_id'])))),
+                if (_actAsLabel(r) != null) ('Act As', SelectableText('${_actAsLabel(r)}\nkonteks ${str(r['act_as_context_id'])}')),
                 ('Record', MonoText(str(r['record_id']), size: 12)),
                 ('Row hash', MonoText(str(r['row_hash']), size: 11)),
               ], minItemWidth: 300),

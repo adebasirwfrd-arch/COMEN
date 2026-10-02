@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 import '../../app.dart';
 import '../../core/router/route_rules.dart';
 import '../../core/security/fingerprint.dart';
+import '../../core/session/act_as_controller.dart';
 import '../../core/session/failure_handler.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/session/session_state.dart';
 import '../../data/api.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../act_as/act_as_widgets.dart';
 
 class NavItem {
   const NavItem(this.path, this.label, this.icon, {this.match});
@@ -66,6 +68,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       final s = ref.read(sessionProvider);
       if (s is SessionReady) ref.read(unreadNotificationsProvider.notifier).state = s.s.unread;
       _refreshChat();
+      final flash = takeActAsFlash();
+      if (flash != null && mounted) showSnack(context, flash);
     });
   }
 
@@ -103,12 +107,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final selected = _selectedIndex(items, path);
 
-    final content = Column(children: [
-      if (s.adminMode) const _AdminBanner(),
+    final column = Column(children: [
+      if (s.isActingAs) ActAsBanner(realName: s.realFullName ?? s.realEmail),
+      if (s.adminMode && !s.isActingAs) const _AdminBanner(),
       if (s.readOnly) const _ReadOnlyBanner(),
       _TopBar(session: s, chatUnread: _chatUnread, showMenu: !wide),
       Expanded(child: widget.child),
     ]);
+    // R38: sesi Act As hanya diperpanjang bila ada interaksi nyata
+    final content = s.isActingAs
+        ? Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => ref.read(actAsProvider.notifier).touch(), child: column)
+        : column;
 
     if (wide) {
       return Scaffold(
@@ -352,6 +361,12 @@ class _TopBarState extends ConsumerState<_TopBar> {
             onPressed: () => context.go('/chat'),
             icon: Badge(isLabelVisible: widget.chatUnread > 0, label: Text('${widget.chatUnread}'), child: const Icon(Icons.chat_bubble_outline_rounded)),
           ),
+        if (s.canActAs && s.aal == 'aal2')
+          IconButton(
+            tooltip: s.isActingAs ? 'Ganti target Act As' : 'Act As (lihat & bertindak sebagai user/role lain)',
+            onPressed: () => showActAsSwitcher(context),
+            icon: Icon(Icons.switch_account_rounded, color: s.isActingAs ? Brand.red : null),
+          ),
         PopupMenuButton<String>(
           tooltip: 'Akun',
           offset: const Offset(0, 48),
@@ -360,16 +375,25 @@ class _TopBarState extends ConsumerState<_TopBar> {
               case 'theme':
                 final m = ref.read(themeModeProvider);
                 ref.read(themeModeProvider.notifier).state = m == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+              case 'act_as_exit':
+                ref.read(actAsProvider.notifier).end();
               default:
                 context.go(v);
             }
           },
           itemBuilder: (_) => [
-            PopupMenuItem(enabled: false, child: Text(s.email, style: const TextStyle(fontWeight: FontWeight.w600))),
+            PopupMenuItem(
+              enabled: false,
+              child: Text(s.isActingAs ? '${s.email}\nlogin sebagai ${s.realEmail}' : s.email, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
             const PopupMenuDivider(),
-            const PopupMenuItem(value: '/settings/profile', child: ListTile(leading: Icon(Icons.person_outline), title: Text('Profil'), dense: true)),
-            const PopupMenuItem(value: '/settings/devices', child: ListTile(leading: Icon(Icons.devices_rounded), title: Text('Perangkat Saya'), dense: true)),
-            const PopupMenuItem(value: '/settings/security', child: ListTile(leading: Icon(Icons.verified_user_outlined), title: Text('Keamanan & MFA'), dense: true)),
+            if (s.isActingAs)
+              const PopupMenuItem(value: 'act_as_exit', child: ListTile(leading: Icon(Icons.logout_rounded, color: Brand.red), title: Text('Keluar dari Act As'), dense: true))
+            else ...[
+              const PopupMenuItem(value: '/settings/profile', child: ListTile(leading: Icon(Icons.person_outline), title: Text('Profil'), dense: true)),
+              const PopupMenuItem(value: '/settings/devices', child: ListTile(leading: Icon(Icons.devices_rounded), title: Text('Perangkat Saya'), dense: true)),
+              const PopupMenuItem(value: '/settings/security', child: ListTile(leading: Icon(Icons.verified_user_outlined), title: Text('Keamanan & MFA'), dense: true)),
+            ],
             const PopupMenuItem(value: 'theme', child: ListTile(leading: Icon(Icons.dark_mode_outlined), title: Text('Mode gelap / terang'), dense: true)),
           ],
           child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Avatar(name: s.fullName ?? s.email, url: s.avatarUrl)),

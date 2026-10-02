@@ -13,6 +13,9 @@ export function userClient(req: Request, extra: Record<string, string> = {}): Su
   const headers: Record<string, string> = { Authorization: `Bearer ${bearer(req)}`, ...extra };
   const dev = req.headers.get('x-device-id');
   if (dev && /^[a-f0-9]{64}$/.test(dev)) headers['x-device-id'] = dev;
+  // Act As: tanpa diteruskan, RPC akan dieksekusi sebagai super admin nyata (melewati blokir R41)
+  const actAs = req.headers.get('x-comen-act-as');
+  if (actAs) headers['x-comen-act-as'] = actAs;
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
   if (ip) headers['x-forwarded-for'] = ip;
   return createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { ...opts, global: { headers } });

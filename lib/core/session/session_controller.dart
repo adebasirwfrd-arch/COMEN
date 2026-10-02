@@ -8,6 +8,7 @@ import '../errors/app_failure.dart';
 import '../security/browser_info.dart';
 import '../security/device_identity.dart';
 import '../security/secure_store.dart';
+import 'act_as_controller.dart';
 import 'session_state.dart';
 
 final secureStoreProvider = Provider<SecureStore>((_) => throw UnimplementedError());
@@ -97,6 +98,7 @@ class SessionController extends Notifier<SessionStatus> {
     _lastRefresh = DateTime.now();
     try {
       final s = SessionState.fromJson(Map<String, dynamic>.from(await _sb.rpc('my_session_state') as Map));
+      ref.read(actAsProvider.notifier).sync(s.actAs);
       switch (s.deviceState) {
         case 'revoked': state = const SessionDeviceRevoked();
         case 'reauth_required': await signOutLocal(reason: 'reauth');
@@ -117,6 +119,7 @@ class SessionController extends Notifier<SessionStatus> {
       case Hint.deviceMissing: case Hint.deviceUnregistered: await bootstrap(force: true);
       case Hint.deviceMismatch: web.window.location.reload();
       case Hint.accountInactive: case Hint.mfaRequired: await refresh();
+      case Hint.actAsEnded: await ref.read(actAsProvider.notifier).recoverOrEnd(f.message);
       default: if (state is SessionBooting) state = SessionError(f);
     }
   }
@@ -140,12 +143,14 @@ class SessionController extends Notifier<SessionStatus> {
 
   Future<void> signOutLocal({String? reason}) async {
     _leaveUserChannel();
+    await ref.read(actAsProvider.notifier).end(reason: 'logout', reload: false);   // R42: logout menutup Act As
     await _sb.auth.signOut(scope: SignOutScope.local);
     state = SessionSignedOut(reason: reason);
   }
 
   /// /device-revoked → "Masuk ulang di perangkat ini": identitas perangkat baru + login segar
   Future<void> resetDeviceAndSignOut() async {
+    await ref.read(actAsProvider.notifier).end(reason: 'logout', reload: false);
     await DeviceIdentity.reset(ref.read(secureStoreProvider));
     await _sb.auth.signOut(scope: SignOutScope.local);
     web.window.location.replace('/login');               // reload → header x-device-id baru

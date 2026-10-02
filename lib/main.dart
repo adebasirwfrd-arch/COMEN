@@ -9,6 +9,7 @@ import 'core/env.dart';
 import 'core/security/device_identity.dart';
 import 'core/security/encrypted_storage.dart';
 import 'core/security/secure_store.dart';
+import 'core/session/act_as.dart';
 import 'core/session/session_controller.dart';
 
 Future<void> main() async {
@@ -21,11 +22,14 @@ Future<void> main() async {
   await store.ready();
   final device = await DeviceIdentity.load(store);
   final sessionStorage = EncryptedSessionStorage(store);
+  final actAsToken = await store.read(ActAsRuntime.storeKey);
+  if (ActAsRuntime.isValidToken(actAsToken)) ActAsRuntime.token = actAsToken;
 
   await Supabase.initialize(
     url: Env.supabaseUrl,
     publishableKey: Env.supabaseAnonKey,
     headers: {'x-device-id': device.hash},              // dikirim ke PostgREST, Edge Functions & Realtime REST
+    httpClient: ActAsHttpClient(host: Uri.parse(Env.supabaseUrl).host),
     authOptions: FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
       localStorage: sessionStorage,
