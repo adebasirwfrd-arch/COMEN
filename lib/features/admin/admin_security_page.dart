@@ -491,10 +491,11 @@ class _PolicyView extends ConsumerStatefulWidget {
 class _PolicyViewState extends ConsumerState<_PolicyView> {
   late Future<List<J>> _future = _load();
   Future<List<J>> _load() => ref.read(apiProvider).select('app_settings', 'key,value,is_public,required_permission,description,updated_by,updated_at',
-      build: (q) => q.inFilter('key', const ['mfa_required_roles', 'step_up_hours', 'rate_chat_per_min', 'chat_key_ver', 'data_key_ver']).order('key'));
+      build: (q) => q.inFilter('key', const ['mfa_required_all', 'mfa_required_roles', 'step_up_hours', 'rate_chat_per_min', 'chat_key_ver', 'data_key_ver']).order('key'));
 
   static const _meta = <String, (String, IconData, String)>{
-    'mfa_required_roles': ('Role wajib MFA', Icons.verified_user_rounded, 'User dengan role ini wajib TOTP sebelum akses.'),
+    'mfa_required_all': ('MFA wajib untuk semua user', Icons.shield_rounded, 'Semua user aktif — karyawan WFRD & contractor — wajib TOTP sebelum akses. User pending tetap bisa menyelesaikan registrasi.'),
+    'mfa_required_roles': ('Role wajib MFA', Icons.verified_user_rounded, 'Bila "MFA wajib untuk semua user" dimatikan, hanya role ini yang wajib TOTP.'),
     'step_up_hours': ('Masa berlaku step-up', Icons.timer_outlined, 'Jam sebelum aksi sensitif meminta verifikasi MFA ulang (1–24).'),
     'rate_chat_per_min': ('Rate limit chat', Icons.speed_rounded, 'Maksimum pesan per menit per user (5–120).'),
     'chat_key_ver': ('Versi kunci chat', Icons.key_rounded, 'Rotasi dilakukan di System → Danger Zone.'),

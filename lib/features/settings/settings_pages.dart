@@ -627,7 +627,7 @@ class _SecurityPageState extends ConsumerState<SecurityPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verified.isEmpty)
           InfoBanner(
-            message: s?.mfaRequired == true ? 'Role Anda mewajibkan MFA. Aktifkan authenticator sekarang.' : 'MFA belum aktif. Aktifkan untuk melindungi akun Anda dari pengambilalihan.',
+            message: s?.mfaRequired == true ? 'Kebijakan keamanan COMEN mewajibkan MFA. Aktifkan authenticator sekarang.' : 'MFA belum aktif. Aktifkan untuk melindungi akun Anda dari pengambilalihan.',
             color: s?.mfaRequired == true ? Brand.red : Brand.amber,
             icon: Icons.warning_amber_rounded,
           )
@@ -663,7 +663,7 @@ class _SecurityPageState extends ConsumerState<SecurityPage> {
               f.status == FactorStatus.verified ? const StatusBadge(Brand.green, 'Aktif') : const StatusBadge(Brand.grey, 'Belum diverifikasi'),
               const SizedBox(width: 4),
               Tooltip(
-                message: lastLocked && f.status == FactorStatus.verified ? 'Role Anda mewajibkan MFA — tambah cadangan dulu sebelum menghapus' : 'Hapus',
+                message: lastLocked && f.status == FactorStatus.verified ? 'MFA wajib untuk akun Anda — tambah cadangan dulu sebelum menghapus' : 'Hapus',
                 child: IconButton(
                   onPressed: lastLocked && f.status == FactorStatus.verified ? null : () => _remove(f),
                   icon: const Icon(Icons.delete_outline_rounded),
@@ -685,7 +685,7 @@ class _SecurityPageState extends ConsumerState<SecurityPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         KeyValueGrid(minItemWidth: 180, [
           ('Tingkat sesi', s.aal == 'aal2' ? const StatusBadge(Brand.green, 'AAL2 · MFA', icon: Icons.verified_user_rounded) : const StatusBadge(Brand.amber, 'AAL1', icon: Icons.lock_open_rounded)),
-          ('MFA wajib', Text(s.mfaRequired ? 'Ya (sesuai role)' : 'Tidak')),
+          ('MFA wajib', Text(s.mfaRequired ? 'Ya (kebijakan keamanan)' : 'Tidak')),
           ('Step-up', s.stepUpFresh ? const StatusBadge(Brand.green, 'Masih berlaku') : const StatusBadge(Brand.grey, 'Perlu kode untuk aksi kritis')),
           ('Login Email OTP', s.emailOtpEnabled ? const StatusBadge(Brand.blue, 'Aktif (diatur Admin)') : const StatusBadge(Brand.grey, 'Nonaktif (diatur Admin)')),
           ('Login terakhir', Text(profile == null ? '-' : '${fmtDateTime(profile['last_login_at'])}${profile['last_login_at'] == null ? '' : ' · ${fmtRelative(profile['last_login_at'])}'}')),

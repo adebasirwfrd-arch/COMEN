@@ -75,7 +75,7 @@ class _MfaEnrollPageState extends ConsumerState<MfaEnrollPage> {
           Text('Aktifkan MFA (TOTP)', style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 8),
-        Text('Role Anda mewajibkan autentikasi dua faktor. Pindai QR dengan Google Authenticator, Microsoft Authenticator, 1Password, atau aplikasi TOTP lain.',
+        Text('COMEN mewajibkan autentikasi dua faktor untuk semua pengguna. Pindai QR dengan Google Authenticator, Microsoft Authenticator, 1Password, atau aplikasi TOTP lain.',
             style: t.bodyMedium),
         const SizedBox(height: 20),
         if (_error != null) ...[InfoBanner(message: _error!, color: Brand.red), const SizedBox(height: 12)],

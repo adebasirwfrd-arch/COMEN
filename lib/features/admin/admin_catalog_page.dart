@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/session/failure_handler.dart';
 import '../../data/api.dart';
 import '../../ui/labels.dart';
 import '../../ui/theme.dart';
@@ -48,12 +49,32 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
     if (ok) _reload();
   }
 
+  Future<void> _assign(List<J> all, [J? preset]) async {
+    final lookups = await ref.read(adminLookupsProvider.future);
+    if (!mounted) return;
+    final docs = all.where(_assignable).toList();
+    final req = await showDialog<J>(context: context, builder: (_) => _AssignDialog(docs: docs, contractors: lookups.contractors, preset: preset));
+    if (req == null || !mounted) return;
+    final r = await runAction<J>(context, ref, () => ref.read(apiProvider).rpcMap('admin_assign_doc_type', req));
+    if (r == null || !mounted) return;
+    final created = r['created'] ?? 0, skipped = r['skipped'] ?? 0;
+    showSnack(context, '$created task dibuat${skipped == 0 ? '' : ' · $skipped dilewati (sudah punya task aktif sejenis / status vendor tidak eligible)'}');
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: 'Document Catalog',
       subtitle: 'Kode dokumen 6 karakter · perubahan berlaku untuk task baru, tidak mengubah task yang sudah ada',
       actions: [
+        FutureBuilder<List<J>>(
+          future: _future,
+          builder: (context, snap) => FilledButton.tonalIcon(
+            onPressed: snap.hasData ? () => _assign(snap.data!) : null,
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Berikan ke kontraktor'),
+          ),
+        ),
         FilledButton.icon(onPressed: () => _edit(null), icon: const Icon(Icons.note_add_rounded), label: const Text('Jenis baru')),
         OutlinedButton.icon(onPressed: _reload, icon: const Icon(Icons.refresh_rounded), label: const Text('Muat ulang')),
       ],
@@ -77,7 +98,7 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
             ],
             child: DataList(
               empty: 'Tidak ada jenis dokumen cocok',
-              columns: const ['Kode', 'Label', 'Jenis', 'Fase', 'Scope', 'Requirement', 'Reviewer', 'Atribut', 'SLA', 'Status'],
+              columns: const ['Kode', 'Label', 'Jenis', 'Fase', 'Scope', 'Requirement', 'Reviewer', 'Atribut', 'SLA', 'Status', ''],
               onTap: (i) => _edit(list[i]),
               rows: [
                 for (final d in list)
@@ -98,6 +119,9 @@ class _AdminCatalogPageState extends ConsumerState<AdminCatalogPage> {
                     ]),
                     Text('${d['review_sla_days']} hr'),
                     BoolBadge(d['active'] == true, trueLabel: 'Aktif', falseLabel: 'Nonaktif'),
+                    _assignable(d)
+                        ? IconButton(tooltip: 'Berikan ke kontraktor', icon: const Icon(Icons.send_rounded, size: 18), onPressed: () => _assign(all, d))
+                        : const SizedBox.shrink(),
                   ],
               ],
             ),
@@ -289,6 +313,172 @@ class _DocTypeDialogState extends State<_DocTypeDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
         FilledButton(onPressed: err == null && reasonOk ? () => Navigator.pop(context, (_code.text.trim(), _payload(), _reason.text.trim())) : null, child: const Text('Simpan')),
+      ],
+    );
+  }
+}
+
+const _assignStatuses = {'under_review', 'asl_approved', 'asl_conditional', 'asl_expired'};
+
+bool _assignable(J d) {
+  final scopes = (d['allowed_scopes'] as List? ?? const []);
+  return d['active'] == true && (scopes.contains('vendor') || scopes.contains('contract'));
+}
+
+/// Satu jenis dokumen katalog → task untuk banyak contractor sekaligus (`admin_assign_doc_type`).
+class _AssignDialog extends StatefulWidget {
+  const _AssignDialog({required this.docs, required this.contractors, this.preset});
+  final List<J> docs;
+  final List<J> contractors;
+  final J? preset;
+  @override
+  State<_AssignDialog> createState() => _AssignDialogState();
+}
+
+class _AssignDialogState extends State<_AssignDialog> {
+  late String? _code = widget.preset?['code'] as String?;
+  String _scope = 'vendor';
+  final Set<String> _selected = {};
+  DateTime? _due = DateTime.now().add(const Duration(days: 14));
+  bool _blocker = false;
+  String _filter = '';
+  final _title = TextEditingController();
+  final _desc = TextEditingController();
+  final _reason = TextEditingController();
+
+  late final List<J> _eligible = widget.contractors.where((c) => _assignStatuses.contains(c['status'])).toList();
+
+  J? get _doc => widget.docs.where((d) => d['code'] == _code).firstOrNull;
+  List<String> get _scopes => [for (final s in ['vendor', 'contract']) if ((_doc?['allowed_scopes'] as List? ?? const []).contains(s)) s];
+
+  @override
+  void initState() {
+    super.initState();
+    _syncDoc();
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _desc.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  void _syncDoc() {
+    _title.text = str(_doc?['label']);
+    if (!_scopes.contains(_scope) && _scopes.isNotEmpty) _scope = _scopes.first;
+  }
+
+  bool get _ok => _doc != null && _scopes.contains(_scope) && _selected.isNotEmpty && _due != null && _reason.text.trim().length >= 5;
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _filter.toLowerCase();
+    final shown = _eligible.where((c) => q.isEmpty || str(c['legal_name']).toLowerCase().contains(q)).toList();
+    final allShown = shown.isNotEmpty && shown.every((c) => _selected.contains(c['id']));
+    return AlertDialog(
+      title: const Text('Berikan task ke kontraktor'),
+      content: SizedBox(
+        width: 640,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const InfoBanner(
+              message: 'Jenis dokumen yang sama diberikan sebagai task baru ke setiap contractor terpilih. '
+                  'Contractor yang sudah punya task aktif sejenis otomatis dilewati.',
+              icon: Icons.info_outline_rounded,
+            ),
+            const SizedBox(height: 16),
+            LookupPicker(
+              label: 'Jenis dokumen *',
+              icon: Icons.description_outlined,
+              items: [for (final d in widget.docs) (d['code'] as String, '${d['code']} · ${str(d['label'])}')],
+              value: _code,
+              onChanged: (v) => setState(() {
+                _code = v;
+                _syncDoc();
+              }),
+            ),
+            if (_doc != null) ...[
+              const SizedBox(height: 16),
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(value: 'vendor', label: const Text('Per perusahaan'), icon: const Icon(Icons.apartment_rounded, size: 16), enabled: _scopes.contains('vendor')),
+                  ButtonSegment(value: 'contract', label: const Text('Per kontrak berjalan'), icon: const Icon(Icons.handshake_outlined, size: 16), enabled: _scopes.contains('contract')),
+                ],
+                selected: {_scope},
+                onSelectionChanged: (v) => setState(() => _scope = v.first),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _scope == 'vendor' ? 'Satu task untuk setiap perusahaan.' : 'Satu task untuk setiap kontrak yang belum ditutup milik perusahaan terpilih.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextField(controller: _title, maxLength: 200, decoration: const InputDecoration(labelText: 'Judul task', counterText: '')),
+            const SizedBox(height: 12),
+            ResponsiveGrid(minItemWidth: 240, spacing: 12, children: [
+              DateField(label: 'Due date *', value: _due, first: DateTime.now(), clearable: false, onChanged: (d) => setState(() => _due = d)),
+              LabeledSwitch(label: 'Blocker', subtitle: 'Menahan progres sampai selesai', value: _blocker, onChanged: (v) => setState(() => _blocker = v)),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: _desc, maxLines: 3, maxLength: 4000, decoration: const InputDecoration(labelText: 'Instruksi untuk contractor (opsional)')),
+            const GroupLabel('Contractor'),
+            Row(children: [
+              Expanded(child: AdminSearchField(hint: 'Cari perusahaan', onChanged: (v) => setState(() => _filter = v))),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: shown.isEmpty
+                    ? null
+                    : () => setState(() => allShown ? _selected.removeAll(shown.map((c) => c['id'])) : _selected.addAll(shown.map((c) => c['id'] as String))),
+                child: Text(allShown ? 'Batal pilih semua' : 'Pilih semua'),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text('${_selected.length} dari ${_eligible.length} contractor dipilih · hanya vendor berstatus review / ASL yang bisa diberi task',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 240),
+              decoration: BoxDecoration(border: Border.all(color: Theme.of(context).dividerColor), borderRadius: BorderRadius.circular(12)),
+              child: shown.isEmpty
+                  ? const Padding(padding: EdgeInsets.all(16), child: Text('Belum ada contractor yang eligible.'))
+                  : ListView(shrinkWrap: true, children: [
+                      for (final c in shown)
+                        CheckboxListTile(
+                          dense: true,
+                          value: _selected.contains(c['id']),
+                          onChanged: (v) => setState(() => v == true ? _selected.add(c['id'] as String) : _selected.remove(c['id'])),
+                          title: Text(str(c['legal_name'])),
+                          subtitle: Text(StatusStyle.vendor(c['status'] as String?).$2),
+                        ),
+                    ]),
+            ),
+            const SizedBox(height: 12),
+            ReasonField(controller: _reason, onChanged: (_) => setState(() {})),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+        FilledButton.icon(
+          onPressed: _ok
+              ? () => Navigator.pop<J>(context, {
+                    'p_doc_type': _code,
+                    'p_scope': _scope,
+                    'p_contractors': _selected.toList(),
+                    'p_title': _title.text.trim().isEmpty ? null : _title.text.trim(),
+                    'p_due': '${_due!.year.toString().padLeft(4, '0')}-${_due!.month.toString().padLeft(2, '0')}-${_due!.day.toString().padLeft(2, '0')}',
+                    'p_is_blocker': _blocker,
+                    'p_description': _desc.text.trim().isEmpty ? null : _desc.text.trim(),
+                    'p_reason': _reason.text.trim(),
+                  })
+              : null,
+          icon: const Icon(Icons.send_rounded),
+          label: Text('Berikan ke ${_selected.length} contractor'),
+        ),
       ],
     );
   }
