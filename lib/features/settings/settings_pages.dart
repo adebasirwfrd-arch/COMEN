@@ -633,7 +633,7 @@ class _SecurityPageState extends ConsumerState<SecurityPage> {
           )
         else if (verified.length == 1)
           const InfoBanner(
-            message: 'Hanya ada 1 authenticator. Tambahkan cadangan (mis. di ponsel kedua) — Supabase tidak menyediakan recovery code.',
+            message: 'Hanya ada 1 authenticator. Tambahkan cadangan (mis. di ponsel kedua). Bila semuanya hilang, authenticator bisa direset lewat kode email di halaman verifikasi.',
             color: Brand.amber,
             icon: Icons.key_rounded,
           ),

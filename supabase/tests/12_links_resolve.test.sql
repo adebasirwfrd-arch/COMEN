@@ -10,7 +10,7 @@ SELECT is(
           regexp_matches(p.prosrc, '''(/[^'']*)''', 'g') AS m
     WHERE n.nspname = 'public'
       AND m[1] NOT IN ('/', '/dashboard', '/tasks', '/tasks/', '/contracts/', '/onedrive', '/meetings/', '/vendors/',
-                       '/my-company', '/pending', '/register', '/incidents/', '/chat', '/chat/', '/settings/devices',
+                       '/my-company', '/pending', '/register', '/incidents/', '/chat', '/chat/', '/settings/devices', '/settings/security',
                        '/invite?email=', '/admin/approvals', '/admin/onedrive-links', '/admin/security', '/admin/audit')),
   NULL, 'tidak ada tautan server yang mengarah ke route tak dikenal');
 

@@ -15,8 +15,12 @@ String? safeNext(String? n) {
   final u = Uri.tryParse(n);
   if (u == null || u.hasScheme || u.hasAuthority) return null;
   if (publicPaths.contains(u.path) || statusPaths.contains(u.path) || u.path.startsWith('/mfa/')) return null;
+  // Sisa redirect auth gagal (mis. "/?error=…&error_code=bad_oauth_state") tidak boleh dibawa sebagai tujuan
+  if (u.queryParameters.keys.any(_authCallbackParams.contains)) return null;
   return n;
 }
+
+const _authCallbackParams = {'error', 'error_code', 'error_description', 'code', 'access_token', 'refresh_token', 'token_hash'};
 
 /// `next` disimpan di sessionStorage selama OAuth (redirect Google tidak membawa query aplikasi)
 void rememberNext(String? n) {

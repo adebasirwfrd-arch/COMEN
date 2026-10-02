@@ -29,6 +29,9 @@ const _eventLabels = <String, String>{
   'chat_moderation': 'Moderasi chat',
   'retention': 'Retensi',
   'anonymized': 'Anonimisasi',
+  'mfa_recovery_requested': 'Minta kode pemulihan MFA',
+  'mfa_recovery_failed': 'Kode pemulihan MFA salah',
+  'mfa_recovery_reset': 'MFA direset via email',
 };
 
 String eventLabel(String? e) => _eventLabels[e] ?? (e ?? '-');

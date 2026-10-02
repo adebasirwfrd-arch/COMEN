@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sekali jalan setelah `supabase login`: konfigurasi Auth, secret Edge, dan deploy 6 Edge Function ke production.
+# Sekali jalan setelah `supabase login`: konfigurasi Auth, secret Edge, dan deploy 7 Edge Function ke production.
 # Migration & Vault sudah di-push lewat koneksi database (supabase db push --db-url).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -36,7 +36,7 @@ echo "→ set secret Edge Function"
 supabase secrets set --project-ref "$REF" --env-file .env.production.local >/dev/null
 
 echo "→ deploy Edge Functions"
-for fn in notify-dispatch audit-anchor submit-registration admin-actions inbound-email brevo-webhook; do
+for fn in notify-dispatch audit-anchor submit-registration admin-actions inbound-email brevo-webhook mfa-recovery; do
   supabase functions deploy "$fn" --project-ref "$REF" --no-verify-jwt
 done
 

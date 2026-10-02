@@ -134,6 +134,20 @@ void main() {
     expect(gateUri(SessionReady(_s()), Uri.parse('/mfa/enroll')), isNull);
   });
 
+  test('pemulihan MFA via email: faktor dihapus → dari verify langsung ke enroll (QR baru)', () {
+    final afterReset = SessionReady(_s(mfaRequired: true));
+    expect(_resolve(afterReset, '/mfa/verify?next=%2Fdashboard'), '/mfa/enroll');
+    expect(gateUri(afterReset, Uri.parse('/mfa/enroll?next=%2Fdashboard')), isNull);
+  });
+
+  test('sisa redirect auth gagal tidak dibawa sebagai next', () {
+    expect(safeNext('/?error=invalid_request&error_code=bad_oauth_state&error_description=x'), isNull);
+    expect(safeNext('/tasks?code=abc'), isNull);
+    expect(safeNext('/tasks?tab=open'), '/tasks?tab=open');
+    expect(gateUri(SessionReady(_s(mfaRequired: true, mfaEnrolled: true)), Uri.parse('/?error=invalid_request&error_code=bad_oauth_state')),
+        '/mfa/verify?next=%2Fdashboard');
+  });
+
   test('RouteRules: setiap route terlindungi punya rule; admin selalu aal2', () {
     for (final p in _allPaths) {
       if (publicPaths.contains(p) || statusPaths.contains(p) || p == '/forbidden') continue;
