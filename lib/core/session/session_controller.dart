@@ -38,13 +38,19 @@ class SessionController extends Notifier<SessionStatus> {
 
   @override
   SessionStatus build() {
-    _authSub = _sb.auth.onAuthStateChange.listen(_onAuth);
+    _authSub = _sb.auth.onAuthStateChange.listen(_onAuth, onError: _onAuthError);
+    final watchdog = Timer(const Duration(seconds: 20), () {
+      if (state is SessionBooting) {
+        state = const SessionError(AppFailure(Hint.unknown, 'Memulai sesi terlalu lama. Coba lagi atau masuk ulang.'));
+      }
+    });
     // Tab kembali aktif → cek ulang sesi (menangkap revoke bila event realtime terlewat), maks 1×/menit
     final JSFunction onVisible = ((web.Event _) {
       if (web.document.visibilityState == 'visible' && DateTime.now().difference(_lastRefresh).inSeconds > 60) refresh();
     }).toJS;
     web.document.addEventListener('visibilitychange', onVisible);
     ref.onDispose(() {
+      watchdog.cancel();
       _authSub?.cancel();
       _leaveUserChannel();
       web.document.removeEventListener('visibilitychange', onVisible);
@@ -65,6 +71,18 @@ class SessionController extends Notifier<SessionStatus> {
       default:
         break;                                             // tokenRefreshed: realtime setAuth ditangani SDK
     }
+  }
+
+  /// URL callback berisi error (link OTP kedaluwarsa, OAuth dibatalkan, code PKCE tidak valid) dikirim SDK sebagai error stream,
+  /// tidak selalu diikuti event sesi → putuskan dari sesi tersimpan agar tidak tertahan di splash.
+  void _onAuthError(Object e, StackTrace _) {
+    if (state is! SessionBooting) return;
+    if (_sb.auth.currentSession != null) {
+      bootstrap();
+      return;
+    }
+    final banned = e is AuthException && (e.code == 'user_banned' || e.message.toLowerCase().contains('banned'));
+    state = SessionSignedOut(reason: banned ? 'account_disabled' : 'auth_error');
   }
 
   /// Urutan wajib (C7): register_device → my_session_state → subscribe user:{id}

@@ -41,9 +41,10 @@ String? gateUri(SessionStatus status, Uri uri) {
   switch (status) {
     case SessionBooting():
       return path == '/splash' ? null : '/splash?next=${Uri.encodeComponent(safeNext(here) ?? '/dashboard')}';
-    case SessionSignedOut():
+    case SessionSignedOut(:final reason):
       if (publicPaths.contains(path)) return null;
-      return '/login?next=${Uri.encodeComponent(nextParam ?? safeNext(here) ?? '/dashboard')}';
+      return '/login?${reason == null ? '' : 'reason=${Uri.encodeComponent(reason)}&'}'
+          'next=${Uri.encodeComponent(nextParam ?? safeNext(here) ?? '/dashboard')}';
     case SessionDeviceRevoked():
       return path == '/device-revoked' ? null : '/device-revoked';     // C1: tidak redirect ke dirinya sendiri
     case SessionError():

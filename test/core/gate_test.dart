@@ -65,6 +65,7 @@ void main() {
   test('signedOut → login (publik tetap boleh) & next dibawa', () {
     expect(_resolve(const SessionSignedOut(), '/tasks/$_id'), '/login');
     expect(gateUri(const SessionSignedOut(), Uri.parse('/tasks/$_id')), '/login?next=${Uri.encodeComponent('/tasks/$_id')}');
+    expect(gateUri(const SessionSignedOut(reason: 'auth_error'), Uri.parse('/dashboard')), '/login?reason=auth_error&next=%2Fdashboard');
     expect(_resolve(const SessionSignedOut(), '/privacy'), '/privacy');
     expect(_resolve(const SessionSignedOut(), '/invite'), '/invite');
   });
