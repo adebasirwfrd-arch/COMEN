@@ -8,7 +8,7 @@ import '../../ui/widgets.dart';
 import 'admin_common.dart';
 import 'admin_widgets.dart';
 
-/// Jadwal pg_cron (UTC) dari migration 15 — tidak ada RPC untuk membaca status run, jadi ditampilkan statis.
+/// Jadwal pg_cron (UTC) dari migration 15 & 19 — tidak ada RPC untuk membaca status run, jadi ditampilkan statis.
 const cronJobs = <(String, String, String, String)>[
   ('comen-notify-dispatch', '* * * * *', 'Tiap menit', 'Kirim antrian email/push (Edge notify-dispatch)'),
   ('comen-chat-scheduler', '* * * * *', 'Tiap menit', 'Pesan chat terjadwal'),
@@ -28,6 +28,7 @@ const cronJobs = <(String, String, String, String)>[
   ('comen-retention', '0 20 * * *', '03:00 WIB', 'Purge sesuai retensi (hormati legal hold)'),
   ('comen-audit-partition', '0 0 1 * *', 'Tgl 1, 07:00 WIB', 'Siapkan partisi audit_logs'),
   ('comen-cron-history-gc', '0 21 * * 0', 'Minggu 04:00 WIB', 'Bersihkan riwayat cron > 14 hari'),
+  ('comen-rekey', '15 20 * * *', '03:15 WIB', 'Re-enkripsi bertahap data lama ke versi kunci aktif'),
 ];
 
 class AdminSystemPage extends ConsumerStatefulWidget {
@@ -159,7 +160,7 @@ class _AdminSystemPageState extends ConsumerState<AdminSystemPage> {
                 child: DangerCard(
                   title: '${k.$2} · v${ver('${k.$1}_key_ver')}',
                   description: '${k.$3}. Prasyarat: secret versi v${ver('${k.$1}_key_ver') + 1} sudah ditambahkan di Supabase Vault (jika belum, rotasi ditolak). '
-                      'Data baru memakai versi baru; data lama tetap terbaca selama secret lama ada. Re-enkripsi data lama (svc_rekey) dijalankan manual oleh DBA.',
+                      'Data baru memakai versi baru; data lama tetap terbaca selama secret lama ada. Re-enkripsi data lama berjalan otomatis tiap malam (job comen-rekey).',
                   icon: Icons.key_rounded,
                   color: Brand.purple,
                   status: m['${k.$1}_key_ver'] == null ? null : StatusBadge(Brand.grey, 'Diperbarui ${fmtRelative(m['${k.$1}_key_ver']!['updated_at'])}'),

@@ -415,6 +415,14 @@ class _AdhocDialogState extends ConsumerState<_AdhocDialog> {
   late String _docType = widget.docType;
   late DateTime? _due = widget.due ?? DateTime.now().add(const Duration(days: 7));
   bool _blocker = false, _busy = false;
+  String? _assignee;
+  late final Future<List<J>> _people = widget.contractorId == null
+      ? Future.value(const <J>[])
+      : ref
+          .read(apiProvider)
+          .rpcList('list_contractor_users', {'p_contractor': widget.contractorId})
+          .then((l) => l.where((u) => u['status'] == 'active').toList())
+          .catchError((_) => const <J>[]);
   late final Future<List<J>> _types = ref.read(apiProvider).select('doc_type_catalog', 'code,label,kind,phase',
       build: (q) => q.eq('active', true).contains('allowed_scopes', [widget.subcontractorId == null ? 'contract' : 'subcontractor']).order('code'));
 
@@ -431,7 +439,7 @@ class _AdhocDialogState extends ConsumerState<_AdhocDialog> {
         'p_title': _title.text.trim(),
         'p_due': _due == null ? null : isoDate(_due!),
         'p_is_blocker': _blocker,
-        'p_assigned_to': null,
+        'p_assigned_to': _assignee,
         'p_source_ref': trimOrNull(_src),
         'p_description': trimOrNull(_desc),
       }),
@@ -484,6 +492,22 @@ class _AdhocDialogState extends ConsumerState<_AdhocDialog> {
             ),
             const SizedBox(height: 12),
             TextField(controller: _src, decoration: const InputDecoration(labelText: 'Referensi sumber (mis. MOM-00042-001)')),
+            const SizedBox(height: 12),
+            FutureBuilder<List<J>>(
+              future: _people,
+              builder: (context, s) => DropdownButtonFormField<String?>(
+                key: ValueKey('adhoc-assignee-${s.data?.length}'),
+                initialValue: _assignee,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Assignee (opsional)', prefixIcon: Icon(Icons.person_outline_rounded)),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('— Semua pengguna contractor —')),
+                  for (final p in s.data ?? const <J>[])
+                    DropdownMenuItem<String?>(value: p['id'] as String, child: Text(str(p['full_name'] ?? p['email']), overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _assignee = v),
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(controller: _desc, maxLines: 3, decoration: const InputDecoration(labelText: 'Deskripsi')),
             SwitchListTile(

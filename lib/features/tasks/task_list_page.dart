@@ -722,7 +722,8 @@ class _AdhocTaskDialogState extends ConsumerState<_AdhocTaskDialog> {
     if (contractorId == null) return Future.value(const <J>[]);
     return ref
         .read(apiProvider)
-        .select('profiles', Cols.profiles, build: (q) => q.eq('contractor_id', contractorId).eq('status', 'active').order('full_name', ascending: true).limit(200))
+        .rpcList('list_contractor_users', {'p_contractor': contractorId})
+        .then((l) => l.where((u) => u['status'] == 'active').toList())
         .catchError((_) => <J>[]);
   }
 
@@ -922,7 +923,7 @@ class _AdhocTaskDialogState extends ConsumerState<_AdhocTaskDialog> {
                   TextField(controller: _sourceRef, maxLength: 200, decoration: const InputDecoration(labelText: 'Referensi sumber (opsional)', hintText: 'mis. MoM-12, temuan inspeksi')),
                   TextField(controller: _desc, maxLines: 3, maxLength: 4000, decoration: const InputDecoration(labelText: 'Deskripsi / instruksi (opsional)')),
                   if (_people.isEmpty && _contractor != null)
-                    Text('Daftar pengguna contractor tidak tersedia untuk akun Anda — task tetap terlihat oleh semua pengguna contractor.',
+                    Text('Contractor ini belum punya pengguna aktif — task tetap terlihat oleh semua pengguna contractor.',
                         style: Theme.of(context).textTheme.bodySmall),
                 ]),
               ),

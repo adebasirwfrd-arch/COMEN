@@ -189,21 +189,42 @@ class _MyCompanyPageState extends ConsumerState<MyCompanyPage> {
 }
 
 // ─────────────────────────── Users ───────────────────────────
-class _UsersCard extends StatelessWidget {
+class _UsersCard extends ConsumerStatefulWidget {
   const _UsersCard({required this.s});
   final SessionState? s;
   @override
+  ConsumerState<_UsersCard> createState() => _UsersCardState();
+}
+
+class _UsersCardState extends ConsumerState<_UsersCard> {
+  late final Future<List<J>> _users = ref.read(apiProvider).rpcList('list_contractor_users').catchError((_) => const <J>[]);
+  static const _roleLabel = {'contractor_rep': 'Contractor Representative', 'contractor_viewer': 'Contractor Viewer'};
+
+  @override
   Widget build(BuildContext context) {
-    final roles = (s?.roles ?? const []).map((r) => r['key'] as String?).whereType<String>().toSet();
-    const roleLabel = {'contractor_rep': 'Contractor Representative', 'contractor_viewer': 'Contractor Viewer'};
+    final s = widget.s;
     return SectionCard(
       title: 'User perusahaan',
       icon: Icons.people_alt_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        UserCardTile(
-          card: {'full_name': s?.fullName ?? s?.email, 'avatar_url': s?.avatarUrl, 'job_title': s?.email},
-          caption: 'Anda',
-          trailing: Wrap(spacing: 4, children: [for (final r in roles) StatusBadge(Brand.blue, roleLabel[r] ?? r)]),
+        FutureBuilder<List<J>>(
+          future: _users,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) return const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()));
+            final users = snap.data ?? const <J>[];
+            return Column(children: [
+              for (final u in users)
+                UserCardTile(
+                  dense: true,
+                  card: {'id': u['id'], 'full_name': u['full_name'] ?? u['email'], 'avatar_url': u['avatar_url'], 'job_title': u['job_title'] ?? u['email']},
+                  caption: u['id'] == s?.userId ? 'Anda' : str(u['email'], ''),
+                  trailing: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    for (final r in jl(u['roles'])) StatusBadge(Brand.blue, _roleLabel[r['role']] ?? str(r['role'])),
+                    if (u['status'] != 'active') StatusBadge.account(u['status'] as String?),
+                  ]),
+                ),
+            ]);
+          },
         ),
         const SizedBox(height: 8),
         const InfoBanner(

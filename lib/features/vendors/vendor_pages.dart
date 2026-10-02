@@ -341,7 +341,9 @@ class _VendorDetailPageState extends ConsumerState<VendorDetailPage> {
     final r = await Future.wait<dynamic>([
       api.rpcMap('get_contractor_detail', {'p_contractor': widget.id}),
       api.select('v_task_tracking', _taskCols, build: (q) => q.eq('contractor_id', widget.id).eq('scope', 'vendor').order('due_date')),
-      adminUsers ? api.rpc('admin_list_users', {'p_contractor': widget.id, 'p_limit': 200}) : Future.value(null),
+      adminUsers
+          ? api.rpc('admin_list_users', {'p_contractor': widget.id, 'p_limit': 200})
+          : api.rpc('list_contractor_users', {'p_contractor': widget.id}).catchError((_) => null),
     ]);
     final c = r[0] as J;
     final evals = jl(c['evaluations']);
@@ -587,7 +589,7 @@ class _VendorDetailPageState extends ConsumerState<VendorDetailPage> {
       trailing: users == null ? null : StatusBadge(Brand.blue, '${users.length}'),
       child: users == null
           ? Text(
-              (s?.hasAdminPerm ?? false) ? 'Aktifkan MFA (AAL2) untuk melihat daftar user kontraktor.' : 'Daftar user hanya tersedia untuk Admin (Admin Console → Users).',
+              'Daftar user kontraktor tidak dapat dimuat.',
               style: const TextStyle(color: Brand.grey),
             )
           : users.isEmpty

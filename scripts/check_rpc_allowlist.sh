@@ -5,11 +5,16 @@ cd "$(dirname "$0")/.."
 
 MIG=$(ls supabase/migrations/*_rls_grants.sql)
 allow=$(python3 - "$MIG" <<'PY'
-import re, sys
+import glob, re, sys
 s = open(sys.argv[1]).read()
 m = re.search(r"v_client\s+TEXT\[\]\s*:=\s*ARRAY\[(.*?)\];", s, re.S)
 body = re.sub(r"--[^\n]*", "", m.group(1))
-print("\n".join(sorted(set(re.findall(r"'([a-z0-9_]+)'", body)))))
+names = set(re.findall(r"'([a-z0-9_]+)'", body))
+# Migration setelah 16 menambah RPC lewat GRANT eksplisit
+for f in sorted(glob.glob("supabase/migrations/*.sql")):
+    if f > sys.argv[1]:
+        names |= set(re.findall(r"GRANT EXECUTE ON FUNCTION (?:public\.)?([a-z0-9_]+)\([^)]*\) TO authenticated", open(f).read()))
+print("\n".join(sorted(names)))
 PY
 )
 

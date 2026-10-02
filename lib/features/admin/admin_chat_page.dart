@@ -241,16 +241,16 @@ class _ChannelDialog extends StatefulWidget {
 
 class _ChannelDialogState extends State<_ChannelDialog> {
   late final _name = TextEditingController(text: str(widget.channel['name'], ''));
-  final _topic = TextEditingController();
+  late final _topic = TextEditingController(text: str(widget.channel['topic'], ''));
   late final _ret = TextEditingController(text: '${widget.channel['retention_days'] ?? 2555}');
-  bool _setTopic = false;
   final _reason = TextEditingController();
 
   Map<String, dynamic> get _patch {
     final p = <String, dynamic>{};
     final name = _name.text.trim();
     if (name.isNotEmpty && name != str(widget.channel['name'], '')) p['name'] = name;
-    if (_setTopic) p['topic'] = _topic.text.trim().isEmpty ? null : _topic.text.trim();
+    final topic = _topic.text.trim();
+    if (topic != str(widget.channel['topic'], '')) p['topic'] = topic.isEmpty ? null : topic;
     final ret = int.tryParse(_ret.text.trim());
     if (ret != null && ret != widget.channel['retention_days']) p['retention_days'] = ret;
     return p;
@@ -269,9 +269,7 @@ class _ChannelDialogState extends State<_ChannelDialog> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(controller: _name, onChanged: (_) => setState(() {}), maxLength: 120, decoration: const InputDecoration(labelText: 'Nama channel')),
             const SizedBox(height: 8),
-            LabeledSwitch(label: 'Ganti topik', subtitle: 'Topik saat ini tidak dimuat; aktifkan untuk menimpa', value: _setTopic, onChanged: (v) => setState(() => _setTopic = v)),
-            if (_setTopic)
-              TextField(controller: _topic, onChanged: (_) => setState(() {}), maxLength: 500, maxLines: 2, decoration: const InputDecoration(labelText: 'Topik baru (kosong = hapus)')),
+            TextField(controller: _topic, onChanged: (_) => setState(() {}), maxLength: 500, maxLines: 2, decoration: const InputDecoration(labelText: 'Topik (kosong = hapus)')),
             const SizedBox(height: 12),
             TextField(
               controller: _ret,
