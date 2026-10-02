@@ -518,8 +518,12 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
   void initState() {
     super.initState();
     _contractor = widget.presetContractorId;
+    if (_registeredCompany && _roles.any((r) => r['key'] == 'contractor_rep')) _role = 'contractor_rep';
   }
 
+  bool get _registeredCompany => widget.mode == RoleGrantMode.approve && widget.presetContractorId != null;
+  String get _registeredCompanyName =>
+      str(widget.lookups.contractors.where((c) => c['id'] == widget.presetContractorId).firstOrNull?['legal_name']);
   J? get _roleRow => _roles.where((r) => r['key'] == _role).firstOrNull;
   bool get _isWfrd => _roleRow?['is_wfrd'] == true;
   bool get _needsContractor => _roleRow != null && !_isWfrd && widget.mode != RoleGrantMode.grant;
@@ -584,6 +588,16 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
             if (_roles.isEmpty) ...[
               const SizedBox(height: 8),
               const InfoBanner(message: 'Tidak ada role yang dapat Anda berikan.', color: Brand.amber, icon: Icons.block_rounded),
+            ],
+            if (_registeredCompany && _isWfrd) ...[
+              const SizedBox(height: 12),
+              InfoBanner(
+                message: 'User ini mendaftarkan perusahaan "$_registeredCompanyName". Role WFRD menjadikannya karyawan internal '
+                    'Weatherford (akses ke semua vendor & kontrak) dan melepas perusahaannya — tidak bisa diubah kembali ke contractor dari aplikasi. '
+                    'Untuk kontraktor, pilih Contractor Rep / Contractor Viewer.',
+                color: Brand.amber,
+                icon: Icons.warning_amber_rounded,
+              ),
             ],
             if (_roleRow != null && _isWfrd) ...[
               const SizedBox(height: 16),

@@ -70,8 +70,13 @@ class _AdminApprovalsPageState extends ConsumerState<AdminApprovalsPage> {
       presetContractorId: single?['contractor_id'] as String?,
     );
     if (g == null || !mounted) return;
+    final wfrdRole = lookups.roles.any((r) => r['key'] == g.roleKey && r['is_wfrd'] == true);
+    final targets = wfrdRole && single == null ? users.where((u) => u['contractor_id'] == null).toList() : users;
+    if (targets.length < users.length) {
+      showSnack(context, '${users.length - targets.length} user yang mendaftarkan perusahaan dilewati — role WFRD hanya untuk karyawan Weatherford.');
+    }
     var ok = 0;
-    for (final u in users) {
+    for (final u in targets) {
       if (!mounted) return;
       final r = await adminRun(context, ref, () => ref.read(apiProvider).rpc('admin_approve_user', {
             'p_user': u['id'],
