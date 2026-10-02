@@ -12,6 +12,7 @@ if [[ "$MODE" == "production" ]]; then
   SUPABASE_URL="https://xyttrxynkwjfqdurscdy.supabase.co"
   SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$(python3 -c "import re;print(re.search(r'^anonpublic=\s*(\S+)', open('BLUEPRINT/secret.md').read(), re.M).group(1))")}"
   VAPID_PUBLIC_KEY="$(envval .env.production.local VAPID_PUBLIC_KEY)"
+  TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-$(envval .env.production.local TURNSTILE_SITE_KEY || true)}"
   APP_ORIGIN="${APP_ORIGIN:-https://comen.vercel.app}"
   MOCK=false
 else
