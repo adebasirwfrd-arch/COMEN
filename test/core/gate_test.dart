@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 const _id = '0f8fad5b-d9cb-469f-a165-70867728950e';
 
 const _allPaths = [
-  '/splash', '/login', '/auth/callback', '/invite', '/privacy', '/pending', '/register', '/suspended',
+  '/splash', '/login', '/auth/callback', '/invite', '/privacy', '/pending', '/register', '/register/wfrd', '/suspended',
   '/account-closed', '/device-revoked', '/mfa/enroll', '/mfa/verify', '/forbidden', '/dashboard', '/notifications',
   '/tasks', '/tasks/tracking', '/tasks/review', '/tasks/$_id', '/contracts', '/contracts/new', '/contracts/$_id',
   '/contracts/$_id/onedrive', '/contracts/$_id/meetings/$_id', '/vendors', '/vendors/$_id', '/my-company',
@@ -76,13 +76,18 @@ void main() {
     expect(_resolve(const SessionError(AppFailure(Hint.network, 'x')), '/kpi'), '/splash');
   });
 
-  test('pending hanya /pending·/register·/settings/devices·/privacy', () {
+  test('pending hanya /pending·/register·/register/wfrd·/settings/devices·/privacy', () {
     final s = SessionReady(_s(status: 'pending', wfrd: false));
     expect(_resolve(s, '/dashboard'), '/pending');
     expect(_resolve(s, '/admin'), '/pending');
-    for (final ok in ['/pending', '/register', '/settings/devices', '/privacy']) {
+    for (final ok in ['/pending', '/register', '/register/wfrd', '/settings/devices', '/privacy']) {
       expect(_resolve(s, ok), ok);
     }
+  });
+
+  test('pendaftaran karyawan WFRD hanya untuk akun pending', () {
+    expect(_resolve(SessionReady(_s()), '/register/wfrd'), '/forbidden');
+    expect(_resolve(SessionReady(_s(wfrd: false, contractor: _id)), '/register/wfrd'), '/forbidden');
   });
 
   test('suspended / closed', () {

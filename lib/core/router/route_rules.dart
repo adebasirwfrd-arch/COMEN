@@ -29,6 +29,7 @@ abstract final class RouteRules {
     RouteRule(RegExp(r'^/kpi$'), (s) => (s.isContractor && !s.onlyVisitorContracts) || _wfrd(s, 'kpi.view')),
     RouteRule(RegExp('^/chat(/saved|/$_uuid)?\$'), (s) => s.can('chat.use')),
     RouteRule(RegExp(r'^/register$'), (s) => s.status == 'pending' || (s.isContractor && s.vendorStatus == 'draft')),
+    RouteRule(RegExp(r'^/register/wfrd$'), (s) => s.status == 'pending'),
     // Pengaturan pribadi & MFA milik akun yang login — ditutup selama Act As (R45)
     RouteRule(RegExp(r'^/settings/devices$'), (s) => !s.isActingAs && (s.status == 'active' || s.status == 'pending')),
     RouteRule(RegExp(r'^/settings/(profile|security|notifications)$'), (s) => !s.isActingAs && _active(s)),

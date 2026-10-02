@@ -484,21 +484,23 @@ Future<RoleGrant?> showRoleGrantDialog(
   required SessionState? session,
   String? subject,
   String? presetContractorId,
+  String? presetRoleKey,
   bool? onlyWfrd,
 }) =>
     showDialog<RoleGrant>(
       context: context,
-      builder: (_) => _RoleGrantDialog(title: title, mode: mode, lookups: lookups, session: session, subject: subject, presetContractorId: presetContractorId, onlyWfrd: onlyWfrd),
+      builder: (_) => _RoleGrantDialog(title: title, mode: mode, lookups: lookups, session: session, subject: subject, presetContractorId: presetContractorId, presetRoleKey: presetRoleKey, onlyWfrd: onlyWfrd),
     );
 
 class _RoleGrantDialog extends StatefulWidget {
-  const _RoleGrantDialog({required this.title, required this.mode, required this.lookups, required this.session, this.subject, this.presetContractorId, this.onlyWfrd});
+  const _RoleGrantDialog({required this.title, required this.mode, required this.lookups, required this.session, this.subject, this.presetContractorId, this.presetRoleKey, this.onlyWfrd});
   final String title;
   final RoleGrantMode mode;
   final AdminLookups lookups;
   final SessionState? session;
   final String? subject;
   final String? presetContractorId;
+  final String? presetRoleKey;
   final bool? onlyWfrd;
   @override
   State<_RoleGrantDialog> createState() => _RoleGrantDialogState();
@@ -528,6 +530,7 @@ class _RoleGrantDialogState extends State<_RoleGrantDialog> {
       _role = 'contractor_rep';
       _level = _canSetPic ? ContractorUserLevel.pic : null;
     }
+    if (widget.presetRoleKey != null && _roles.any((r) => r['key'] == widget.presetRoleKey)) _role = widget.presetRoleKey;
   }
 
   bool get _canSetPic => widget.session?.can('level.pic.set') == true;

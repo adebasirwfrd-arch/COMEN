@@ -32,7 +32,9 @@ import '../../features/incidents/incident_pages.dart';
 import '../../features/kpi/kpi_page.dart';
 import '../../features/my_company/my_company_page.dart';
 import '../../features/notifications/notifications_page.dart';
+import '../../features/register/pending_page.dart';
 import '../../features/register/register_page.dart';
+import '../../features/register/wfrd_register_page.dart';
 import '../../features/settings/settings_pages.dart';
 import '../../features/shell/app_shell.dart';
 import '../../features/status/status_pages.dart';
@@ -79,6 +81,7 @@ List<RouteBase> buildRoutes() => [
       _r('/privacy', (_) => const PrivacyPage()),
       _r('/pending', (_) => const PendingPage()),
       _r('/register', (_) => const RegisterPage()),
+      _r('/register/wfrd', (_) => const WfrdRegisterPage()),
       _r('/suspended', (_) => const SuspendedPage()),
       _r('/account-closed', (_) => const AccountClosedPage()),
       _r('/device-revoked', (_) => const DeviceRevokedPage()),

@@ -62,14 +62,21 @@ class _AdminApprovalsPageState extends ConsumerState<AdminApprovalsPage> {
     final lookups = await ref.read(adminLookupsProvider.future);
     if (!mounted) return;
     final single = users.length == 1 ? users.first : null;
+    final wfrdReq = single?['wfrd_request'] is Map ? jm(single!['wfrd_request']) : null;
     final g = await showRoleGrantDialog(
       context,
       title: single == null ? 'Bulk approve ${users.length} user' : 'Approve ${str(single['full_name'])}',
       mode: RoleGrantMode.approve,
       lookups: lookups,
       session: sessionOf(ref),
-      subject: single == null ? 'Role & scope yang sama diberikan ke ${users.length} user terpilih.' : '${single['email']}${single['contractor_name'] != null ? ' · draft: ${single['contractor_name']}' : ''}',
-      presetContractorId: single?['contractor_id'] as String?,
+      subject: single == null
+          ? 'Role & scope yang sama diberikan ke ${users.length} user terpilih.'
+          : wfrdReq != null
+              ? '${single['email']} · karyawan Weatherford ${str(wfrdReq['employee_id'])} · ${str(wfrdReq['job_title'])} (${str(wfrdReq['geozone'])})'
+              : '${single['email']}${single['contractor_name'] != null ? ' · draft: ${single['contractor_name']}' : ''}',
+      presetContractorId: wfrdReq != null ? null : single?['contractor_id'] as String?,
+      presetRoleKey: wfrdReq?['requested_role_key'] as String?,
+      onlyWfrd: wfrdReq != null ? true : null,
     );
     if (g == null || !mounted) return;
     final wfrdRole = lookups.roles.any((r) => r['key'] == g.roleKey && r['is_wfrd'] == true);
@@ -221,7 +228,10 @@ class _PendingCard extends StatelessWidget {
             if (user['domain_matches_contractor'] == true) const StatusBadge(Brand.green, 'Domain cocok contractor terdaftar', icon: Icons.verified_rounded),
             if (!disposable && sameDomain <= 1 && user['domain_matches_contractor'] != true) const StatusBadge(Brand.grey, 'Tidak ada sinyal khusus'),
           ]),
-          if (user['contractor_name'] != null) ...[
+          if (user['wfrd_request'] is Map) ...[
+            const SizedBox(height: 10),
+            _WfrdRequestBox(jm(user['wfrd_request']), loginEmail: email),
+          ] else if (user['contractor_name'] != null) ...[
             const SizedBox(height: 10),
             InfoBanner(
               message: 'Draft registrasi: ${user['contractor_name']} (${StatusStyle.vendor(user['vendor_status'] as String?).$2})',
@@ -246,6 +256,51 @@ class _PendingCard extends StatelessWidget {
           ]),
         ]),
       ),
+    );
+  }
+}
+
+class _WfrdRequestBox extends StatelessWidget {
+  const _WfrdRequestBox(this.r, {required this.loginEmail});
+  final J r;
+  final String loginEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    final workEmail = r['work_email'] as String?;
+    final wfrdDomain = [loginEmail, workEmail ?? ''].any((e) => e.toLowerCase().endsWith('@weatherford.com'));
+    Widget row(String k, String? v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 110, child: Text(k, style: const TextStyle(fontSize: 12, color: Brand.grey))),
+            Expanded(child: SelectableText(v == null || v.isEmpty ? '-' : v, style: const TextStyle(fontSize: 13))),
+          ]),
+        );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Brand.blue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.blue.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          const StatusBadge(Brand.blue, 'Karyawan Weatherford', icon: Icons.badge_rounded),
+          wfrdDomain
+              ? const StatusBadge(Brand.green, 'Email @weatherford.com', icon: Icons.verified_rounded)
+              : const StatusBadge(Brand.amber, 'Tanpa email Weatherford — verifikasi ke atasan/HR', icon: Icons.warning_amber_rounded),
+        ]),
+        const SizedBox(height: 8),
+        row('Employee ID', r['employee_id'] as String?),
+        row('Jabatan', '${str(r['job_title'])} · ${str(r['department'])}'),
+        row('Geozone', '${str(r['geozone'])}${r['work_location'] == null ? '' : ' · ${r['work_location']}'}'),
+        row('Atasan', '${str(r['line_manager_name'])} · ${str(r['line_manager_email'])}'),
+        row('Email kerja', workEmail),
+        row('Telepon', r['phone'] as String?),
+        row('Role diminta', r['requested_role_name'] as String? ?? 'Ditentukan Admin'),
+        if (r['note'] != null) row('Catatan', r['note'] as String?),
+        row('Dikirim', fmtDateTime(r['submitted_at'])),
+      ]),
     );
   }
 }

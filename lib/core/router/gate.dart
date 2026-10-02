@@ -52,7 +52,7 @@ String? gateUri(SessionStatus status, Uri uri) {
     case SessionReady(:final s):
       switch (s.status) {
         case 'pending':
-          return only('/pending', also: const {'/register', '/settings/devices', '/privacy'});
+          return only('/pending', also: const {'/register', '/register/wfrd', '/settings/devices', '/privacy'});
         case 'suspended':
           return only('/suspended');
         case 'rejected': case 'deactivated':

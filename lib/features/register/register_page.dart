@@ -254,6 +254,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             Text('Registrasi kontraktor', style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
             const SizedBox(height: 4),
             Text('Lengkapi data perusahaan untuk masuk Approved Supplier List Weatherford.', style: t.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            if (s?.status == 'pending')
+              TextButton.icon(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                onPressed: () => context.go('/register/wfrd'),
+                icon: const Icon(Icons.badge_outlined, size: 18),
+                label: const Text('Bukan contractor? Daftar sebagai karyawan Weatherford'),
+              ),
           ]),
         ),
         if (_trackingId != null)

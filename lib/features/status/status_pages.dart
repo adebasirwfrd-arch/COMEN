@@ -185,38 +185,6 @@ class SplashPage extends ConsumerWidget {
   }
 }
 
-class PendingPage extends ConsumerWidget {
-  const PendingPage({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(sessionProvider);
-    final st = s is SessionReady ? s.s : null;
-    final submitted = st?.registrationSubmitted == true;
-    return BrandBackdrop(
-      child: StatusMessage(
-        icon: Icons.hourglass_top_rounded,
-        color: Brand.amber,
-        title: 'Akun Anda menunggu persetujuan Admin',
-        message: submitted
-            ? 'Registrasi perusahaan ${st?.contractorName ?? ''} sudah dikirim (status: ${st?.vendorStatus ?? '-'}). '
-                'Anda akan otomatis masuk begitu Admin menyetujui akun.'
-            : 'Jika Anda mewakili perusahaan contractor, lengkapi registrasi perusahaan agar Admin dapat memproses akun Anda.',
-        actions: [
-          if (!submitted)
-            FilledButton.icon(onPressed: () => context.go('/register'), icon: const Icon(Icons.apartment_rounded), label: const Text('Lengkapi registrasi perusahaan')),
-          OutlinedButton.icon(
-            onPressed: () => ref.read(sessionProvider.notifier).refresh(),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Periksa status'),
-          ),
-          TextButton(onPressed: () => context.go('/settings/devices'), child: const Text('Perangkat saya / keluar')),
-        ],
-      ),
-    );
-  }
-}
-
 class SuspendedPage extends ConsumerWidget {
   const SuspendedPage({super.key});
   @override
